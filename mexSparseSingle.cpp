@@ -78,6 +78,25 @@ public:
             return result;
         }
 
+        mxArray* vecTimes(const mxSingle* vals,mwSize n) const {
+            //Create a Map to the Eigen vector
+            Eigen::Map<const Eigen::VectorXf> vecMap(vals,n);
+
+            //Create the result array and map eigen vector around it - when transposed, the getRows is already considering this
+            mxArray* result = mxCreateNumericMatrix(1,this->getCols(),mxSINGLE_CLASS,mxREAL);
+            mxSingle* result_data = mxGetSingles(result);
+            Eigen::Map<Eigen::VectorXf> resultMap(result_data,this->getCols());
+            
+            //Execute the product
+            if (!this->transposed)
+                resultMap = this->eigSpMatrix->transpose()*vecMap;
+            else
+                resultMap = (*this->eigSpMatrix)*vecMap;
+            
+            //return the bare array
+            return result;
+        }
+
         mwSize getNnz() const {
             return this->eigSpMatrix->nonZeros();
         }
@@ -170,7 +189,8 @@ public:
             */
 
         }
-
+        
+        /*
         mxArray* linearIndexing(const mxArray* indexList) const {
             //First check if it is indeed an index list or a colon operator
             mxClassID ixType = mxGetClassID(indexList);
@@ -227,6 +247,7 @@ public:
             return result;
 
         }
+        */
 
         //TODO: sparse version, as matlab expects a sparse output vector
         sparseSingle* allValues() const {
@@ -261,15 +282,15 @@ public:
             */
 
             index_t numValues = this->getRows()*this->getCols();
-            index_t nnz = this->eigSpMatrix->getNnz();
+            index_t nnz = this->getNnz();
             //mxArray* result = mxCreateNumericMatrix(numValues,1,mxSINGLE_CLASS,mxREAL);
             //mxSingle* result_data = mxGetSingles(result);
 
-            spMat_t* subSpMat = std::make_shared<spMat_t>(numValues,1);
+            std::shared_ptr<spMat_t> subSpMat = std::make_shared<spMat_t>(numValues,1);
             subSpMat->reserve(nnz);            
             std::copy(subSpMat->valuePtr(),subSpMat->valuePtr() + nnz,this->eigSpMatrix->valuePtr());
-            subSpMat->outerIndexPtr[0] = index_t(0);
-            subSpMat->outerIndexPtr[1] = numValues;
+            subSpMat->outerIndexPtr()[0] = index_t(0);
+            subSpMat->outerIndexPtr()[1] = numValues;
 
             index_t count = 0;
 
@@ -282,8 +303,8 @@ public:
                     for (Eigen::Map<spMatTransposed_t>::InnerIterator it(crs_transposed,k); it; ++it)
                     {
                         //mexPrintf("\t(%d,%d)\t\t%g\n",it.row()+1,it.col()+1,it.value());
-                        index_t linearIndex = this->toLinearIndex(it.row(),it.col())];
-                        subSpMat->innerIndexPtr[count] = linearIndex;
+                        index_t linearIndex = this->toLinearIndex(it.row(),it.col());
+                        subSpMat->innerIndexPtr()[count] = linearIndex;
                         count++;
                     }
             }
@@ -292,8 +313,8 @@ public:
                 for (index_t k = 0; k < this->eigSpMatrix->outerSize(); ++k)
                     for (spMat_t::InnerIterator it(*this->eigSpMatrix,k); it; ++it)
                     {
-                        index_t linearIndex = this->toLinearIndex(it.row(),it.col())];
-                        subSpMat->innerIndexPtr[count] = linearIndex;
+                        index_t linearIndex = this->toLinearIndex(it.row(),it.col());
+                        subSpMat->innerIndexPtr()[count] = linearIndex;
                         count++;
                     }
             }
@@ -446,8 +467,25 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
             mexErrMsgTxt("timesVec: Unexpected arguments.");
         try {
             const mxSingle* vals = mxGetSingles(prhs[2]);
-            sparseSingle::index_t n = mxGetM(prhs[2]);
+            sparseSingle::index_t n = mxGetNumberOfElements(prhs[2]);
             mxArray* result = sparseSingle_instance->timesVec(vals,n);
+            plhs[0] = result;
+        }
+        catch(...)
+        {
+            mexErrMsgTxt("timesVec: Product failed.");
+        }
+        return;
+    }
+
+    if (!strcmp("vecTimes",cmd))
+    {
+        if (nlhs < 0 || nlhs > 1)
+            mexErrMsgTxt("vecTimes: Unexpected arguments.");
+        try {
+            const mxSingle* vals = mxGetSingles(prhs[2]);
+            sparseSingle::index_t n = mxGetNumberOfElements(prhs[2]);
+            mxArray* result = sparseSingle_instance->vecTimes(vals,n);
             plhs[0] = result;
         }
         catch(...)
@@ -470,7 +508,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         }
         return;
     }
-
+    /*
     if (!strcmp("linearIndexing",cmd))
     {
         if (nlhs < 0 || nlhs > 1 || nrhs > 3)
@@ -486,6 +524,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         }
         return;
     }
+    */
 
 
     // Delete

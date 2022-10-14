@@ -1,7 +1,7 @@
 classdef SparseSingleTest < matlab.unittest.TestCase
 
     methods (Test)
-        function test_mtimes_1(testCase)
+        function test_mtimes_Ax(testCase)
             test = sparse(eye(2))
             hello = SparseSingle(test);
             v = [1; 1];
@@ -13,13 +13,37 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.verifyTrue(norm(prod1 - prod2) < eps('single'));
         end
 
-        function test_mtimes_2(testCase)
+        function test_mtimes_Atx(testCase)
             test = sparse(eye(2))
             hello = SparseSingle(test);
             v = [1; 1];
             vs = single(v);
             prod1 = test'*v;
             prod2 = hello'*v;
+
+            testCase.verifySize(prod2,size(prod1));
+            testCase.verifyTrue(norm(prod1 - prod2) < eps('single'));
+        end
+
+        function test_mtimes_xA(testCase)
+            test = sparse([0 2 0; 1 0 0]);
+            hello = SparseSingle(test);
+            v = [1 1];
+            vs = single(v);
+            prod1 = v*test;
+            prod2 = vs*hello;
+
+            testCase.verifySize(prod2,size(prod1));
+            testCase.verifyTrue(norm(prod1 - prod2) < eps('single'));
+        end
+
+        function test_mtimes_xAt(testCase)
+            test = sparse([0 2 0; 1 0 0])';
+            hello = SparseSingle(test);
+            v = [1 1];
+            vs = single(v);
+            prod1 = v*test';
+            prod2 = vs*hello';
 
             testCase.verifySize(prod2,size(prod1));
             testCase.verifyTrue(norm(prod1 - prod2) < eps('single'));

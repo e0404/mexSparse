@@ -63,7 +63,7 @@ classdef SparseSingle
                 % transpose(M) * transpose(v)
                 %arg2.trans = 1;
                 %ret = matRad_cuSparse(arg2.nrows, arg2.ncols, arg2.nnz, arg2.jc, arg2.ir, arg2.pr, arg2.trans, arg1);
-                ret = mexSparseSingle('timesVec',arg2.objectHandle,arg1);
+                ret = mexSparseSingle('vecTimes',arg2.objectHandle,arg1);
 
                 % matrix * vector
             elseif isa(arg1, 'SparseSingle') && iscolumn(arg2)
