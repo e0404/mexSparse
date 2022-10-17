@@ -119,6 +119,7 @@ classdef SparseSingle
                         
                         %Submatrix indexing
                         elseif nSubs == 2
+                            %Workaround for Colon at the moment
                             if isequal(s.subs{1},':')
                                 warning('Row Colon indexing not efficient at the moment!');
                                 s.subs{1} = 1:this.nRows;
@@ -127,6 +128,24 @@ classdef SparseSingle
                             if isequal(s.subs{2},':')
                                 warning('Column Colon indexing not efficient at the moment!');
                                 s.subs{2} = 1:this.nCols;
+                            end
+
+                            % Workaround for Logical indexing at the moment
+
+                            if islogical(s.subs{1})
+                                if ~isvector(s.subs{1}) || numel(s.subs{1}) ~= this.nRows
+                                    error('Wrong index dimension: Number of elements must be the same!');
+                                end
+                                warning('Logical indexing not efficient at the moment and will be converted to an index list!');
+                                s.subs{1} = find(s.subs{1});
+                            end
+
+                            if islogical(s.subs{2})
+                                if ~isvector(s.subs{2}) || numel(s.subs{1}) ~= this.nCols
+                                    error('Wrong index dimension: Number of elements must be the same!');
+                                end
+                                warning('Logical indexing not efficient at the moment and will be converted to an index list!');
+                                s.subs{2} = find(s.subs{2});
                             end
 
                             subMatrixHandle = mexSparseSingle('subsrefRowCol',this.objectHandle,s.subs{1},s.subs{2});
