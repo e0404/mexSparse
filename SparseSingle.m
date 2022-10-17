@@ -111,8 +111,30 @@ classdef SparseSingle
             switch s(1).type
                 case '()'
                     if length(s) == 1
-                        %values = mexSparseSingle('subsref',arg2.objectHandle,arg1);
-                        values = mexSparseSingle('linearIndexing',this.objectHandle,s.subs{1});
+                        nSubs = length(s.subs);
+                        %Linear Indexing
+                        if nSubs == 1
+                            error('Linear indexing not yet supported!');
+                            %values = mexSparseSingle('linearIndexing',this.objectHandle,s.subs{1});
+                        
+                        %Submatrix indexing
+                        elseif nSubs == 2
+                            if isequal(s.subs{1},':')
+                                warning('Row Colon indexing not efficient at the moment!');
+                                s.subs{1} = 1:this.nRows;
+                            end
+
+                            if isequal(s.subs{2},':')
+                                warning('Column Colon indexing not efficient at the moment!');
+                                s.subs{2} = 1:this.nCols;
+                            end
+
+                            subMatrixHandle = mexSparseSingle('subsrefRowCol',this.objectHandle,s.subs{1},s.subs{2});
+                            values = SparseSingle(subMatrixHandle);
+                        else
+                            error('Requested Indexing Pattern is not supported!');
+                        end
+                        
                     elseif length(s) >= 2 && strcmp(s(2).type,'.')
                         error('Dot indexing not supported for SparseSingle!');
                     else

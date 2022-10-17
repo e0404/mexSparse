@@ -61,6 +61,65 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.verifyTrue(norm(prod1 - prod2) < eps('single'));
         end
 
+        function test_subsref_blocks(testCase)
+            test = sprand(10,10,0.1);
+            tests = SparseSingle(test);
+            
+            block{1} = test(:,:);
+            blocks{1} = tests(:,:);
+
+            block{2} = test(:,5);
+            blocks{2} = tests(:,5);
+
+            block{3} = test(5,:);
+            blocks{3} = tests(5,:);
+
+            block{4} = test(2:7,:);
+            blocks{4} = tests(2:7,:);
+
+            block{5} = test(:,2:7);
+            blocks{5} = tests(:,2:7);
+
+            block{6} = test(2:7,2:7);
+            blocks{6} = tests(2:7,2:7);
+
+            block{5} = test(3,2:7);
+            blocks{5} = tests(3,2:7);
+
+            block{6} = test(2:7,3);
+            blocks{6} = tests(2:7,3);
+            
+            for i = 1:numel(block)
+                testCase.verifySize(blocks{i},size(block{i}));
+                testCase.verifyEqual(nnz(blocks{i}),nnz(block{i}));
+            end
+        end
+
+        function test_subsref_slicing(testCase)
+            test = sprand(10,10,0.1);
+            tests = SparseSingle(test);
+            
+            slice{1} = test([2 6],:);
+            slices{1} = tests([2 6],:);
+
+            slice{2} = test(:,[2 6]);
+            slices{2} = tests(:,[2 6]);
+
+            slice{3} = test([2 7],[2 6]);
+            slices{3} = tests([2,7],[2 6]);
+
+            slice{4} = test([2 7 4],[2 6]);
+            slices{4} = tests([2 7 4],[2 6]);
+
+            slice{5} = test([2 6],[2 7 4]);
+            slices{5} = tests([2 6],[2 7 4]);
+            
+            for i = 1:numel(slice)
+                testCase.verifySize(slices{i},size(slice{i}));
+                testCase.verifyEqual(nnz(slices{i}),nnz(slice{i}));
+            end
+        end
+
         function test_linearindexing(testCase)
             test = sparse([0 2 0; 1 0 0]);
             tests = SparseSingle(test);
