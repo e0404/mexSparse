@@ -1,1 +1,1 @@
-mex -R2018a COMPFLAGS="$COMPFLAGS /openmp" mexSparseSingle.cpp -Ieigen/
+mex -R2018a COMPFLAGS="$COMPFLAGS /openmp /std:c++17 /O2" mexSparseSingle.cpp sparseSingle.cpp -Ieigen/

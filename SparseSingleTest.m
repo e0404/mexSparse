@@ -54,11 +54,26 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             tests = SparseSingle(test);
             tests_t = transpose(tests);
 
-            prod1 = tests*[1;1];
-            prod2 = tests_t'*[1;1];
+            prod1 = tests*[1;1;1];
+            prod2 = tests_t'*[1;1;1];
 
             testCase.verifySize(tests_t,fliplr(size(tests))); 
             testCase.verifyTrue(norm(prod1 - prod2) < eps('single'));
+        end
+
+        function test_ScalarMultiply(testCase)
+            test = sparse([0 2 0; 1 0 0]);
+            tests = SparseSingle(test);
+            test_t = transpose(test);
+            tests_t = transpose(tests);
+            
+            result = 2*test;
+            result_t = 2*test_t;
+            result_s = 2*tests;
+            result_t_s = 2*tests_t;
+
+            testCase.verifySize(result_s,size(result_t));
+            testCase.verifySize(result_t_s,size(result_t));             
         end
 
         function test_subsref_blocks(testCase)
@@ -120,7 +135,7 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             end
         end
 
-        function test_linearindexing(testCase)
+        function test_linearindexingColon(testCase)
             test = sparse([0 2 0; 1 0 0]);
             tests = SparseSingle(test);
             test_t = transpose(test);
@@ -133,8 +148,8 @@ classdef SparseSingleTest < matlab.unittest.TestCase
 
             testCase.verifySize(ixVecS,size(ixVecD));
             testCase.verifySize(ixVecST,size(ixVecDT)); 
-            testCase.verifyTrue(all((full(ixVecD) - ixVecS) < eps('single')));
-            testCase.verifyTrue(all((full(ixVecDT) - ixVecST) < eps('single')));
+            testCase.verifyTrue(all((full(ixVecD) - full(ixVecS)) < eps('single')));
+            testCase.verifyTrue(all((full(ixVecDT) - full(ixVecST)) < eps('single')));
         end
     end
 

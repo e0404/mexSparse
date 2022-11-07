@@ -48,22 +48,25 @@ classdef SparseSingle
 
                 % vector * matrix
                 % arg1: numeric vector
-                % arg2: SparseSingle obj
-            elseif isvector(arg1) && isrow(arg1) && isa(arg2, 'SparseSingle')
+                % arg2: SparseSingle obj              
+
+            elseif isrow(arg1) && isa(arg2, 'SparseSingle')
 
                 if ~isnumeric(arg1)
                     error('First Input (arg1) must be numeric');
                 end
 
-
                 if ~isa(arg1, 'single')
                     arg1 = single(arg1);
                 end
-                % set tranpose flag to transfome the equation v * M to
-                % transpose(M) * transpose(v)
-                %arg2.trans = 1;
-                %ret = matRad_cuSparse(arg2.nrows, arg2.ncols, arg2.nnz, arg2.jc, arg2.ir, arg2.pr, arg2.trans, arg1);
-                ret = mexSparseSingle('vecTimes',arg2.objectHandle,arg1);
+                
+                if isscalar(arg1)
+                    ret = mexSparseSingle('timesScalar',arg2.objectHandle,arg1);
+                elseif numel(arg1) == arg2.nRows
+                    ret = mexSparseSingle('vecTimes',arg2.objectHandle,arg1);
+                else
+                    error('Invalid Dimensions for multiplication!');
+                end
 
                 % matrix * vector
             elseif isa(arg1, 'SparseSingle') && iscolumn(arg2)
@@ -72,12 +75,17 @@ classdef SparseSingle
                     error('Second Input (arg2) must be numeric');
                 end
 
-                % arg1: SparseSingle obj
-                % arg2: numeric vector
                 if ~isa(arg2, 'single')
                     arg2 = single(arg2);
                 end
-                ret = mexSparseSingle('timesVec',arg1.objectHandle,arg2);
+
+                if isscalar(arg2)
+                    ret = mexSparseSingle('timesScalar',arg1.objectHandle,arg2);
+                elseif numel(arg2) == arg1.nCols
+                    ret = mexSparseSingle('timesVec',arg1.objectHandle,arg2);
+                else
+                    error('Invalid Dimensions for multiplication!');
+                end
 
             elseif ismatrix(arg1) && ismatrix(arg2)
                 error('Matrix Matrix product not implemented');
@@ -112,11 +120,12 @@ classdef SparseSingle
                 case '()'
                     if length(s) == 1
                         nSubs = length(s.subs);
+
                         %Linear Indexing
                         if nSubs == 1
-                            error('Linear indexing not yet supported!');
-                            %values = mexSparseSingle('linearIndexing',this.objectHandle,s.subs{1});
-                        
+                            subMatrixHandle = mexSparseSingle('linearIndexing',this.objectHandle,s.subs{1});
+                            values = SparseSingle(subMatrixHandle);
+
                         %Submatrix indexing
                         elseif nSubs == 2
                             %Workaround for Colon at the moment
