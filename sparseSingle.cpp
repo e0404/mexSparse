@@ -203,7 +203,7 @@ sparseSingle* sparseSingle::allValues() const
     if (!(this->eigSpMatrix->isCompressed()))
         mexErrMsgTxt("The matrix is not compressed! This is unexpected behavior!");
 
-    std::copy(std::execution_policy::par_unseq,this->eigSpMatrix->valuePtr(),this->eigSpMatrix->valuePtr() + nnz, subSpMat->valuePtr());
+    std::copy(std::execution::par_unseq,this->eigSpMatrix->valuePtr(),this->eigSpMatrix->valuePtr() + nnz, subSpMat->valuePtr());
     subSpMat->outerIndexPtr()[0] = index_t(0);
     subSpMat->outerIndexPtr()[1] = nnz;
 
@@ -275,7 +275,7 @@ sparseSingle* sparseSingle::linearIndexing(const mxArray* indexList) const
     //First check if it is indeed an index list or a colon operator
     mxClassID ixType = mxGetClassID(indexList);
 
-    sparseSingle* result;
+    sparseSingle* result = nullptr;
 
     if (ixType == mxCHAR_CLASS) // We have a colon operator
         result = this->allValues();
@@ -292,139 +292,184 @@ sparseSingle* sparseSingle::linearIndexing(const mxArray* indexList) const
         const mwSize* ixDim = mxGetDimensions(indexList);
 
         index_t numValues;
+        bool isColumnVector;
 
         if (ixDim[0] == 1)
+        {
             numValues = mxGetN(indexList);
+            isColumnVector = false;
+        }
         else if (ixDim[1] == 1)
+        {
             numValues = mxGetM(indexList);
+            isColumnVector = true;
+        }
         else
-            mexErrMsgTxt("Only vector index lists are allowed!");
+            mexErrMsgTxt("Only vector index lists are implemented for now!");
 
         index_t nnz = this->getNnz();
 
-
-        //There's two ways I consider doing this efficiently
-        //1) Map a Sparse Vector a' over the existing values, create a slicing matrix R (similar to row/colon indexing, we don't need Q) and perform R*a';
-        //   Indexing by Matrix Multiplication as found here: https://people.eecs.berkeley.edu/~aydin/spgemm_sisc12.pdf
-        //2) Convert the linear index list into subscripts, perform row colon indexing, and then reshape the matrix to a vector (should be less efficient?)
-        //We'll do the second because otherwise the indexing matrix might be very storage intense du to the large size of th outerVector for now
-
+        std::shared_ptr<spMat_t> subSpMat;
         
-        //Variant 1) - gives bad_alloc for now
-        //Note that index lists are actually doubles in matlab, so we cast to actuall indices
         Matlab2EigenIndexListConverter indexList4Eigen(indexList);
 
-        //Temporary Sparse Vector
-        std::vector<sparseSingle::index_t> tmpInnerIndex(nnz);
-        std::array<sparseSingle::index_t,2> tmpOuterIndex;
-        tmpOuterIndex[0] = 0;
-        tmpOuterIndex[1] = nnz;
-        if (this->transposed)  
+        //check first if we have a scalar to avoid expensive copies
+        if (numValues == 1)
         {
-            Eigen::Map<spMatTransposed_t> crs_transposed(this->getRows(),this->getCols(),nnz,this->eigSpMatrix->outerIndexPtr(),this->eigSpMatrix->innerIndexPtr(),this->eigSpMatrix->valuePtr());
-            index_t count = 0;
-            //#pragma omp parallel for schedule(dynamic)
-            for (index_t k = 0; k < crs_transposed.outerSize(); ++k)
-                for (Eigen::Map<spMatTransposed_t>::InnerIterator it(crs_transposed,k); it; ++it)
-                {
-                    index_t linearIndex = this->toLinearIndex(it.row(),it.col());
-                    tmpInnerIndex[count] = linearIndex;
-                    count++;
-                }
+            index_t linearIndex = indexList4Eigen[0];
+            index_t rowIx = this->linearIndexToRowIndex(linearIndex);
+            index_t colIx = this->linearIndexToColIndex(linearIndex);
+            float value;
+            if (!this->transposed)
+                value = this->eigSpMatrix->coeff(rowIx,colIx);
+            else
+                value = this->eigSpMatrix->coeff(colIx,rowIx);
+            
+            subSpMat = std::make_shared<spMat_t>(1,1);
+            if (value > 0.0)
+                subSpMat->coeffRef(0,0) = value;
+
+            isColumnVector = true; //We do not want to set the transpose flag in this case at any times
         }
         else{
-            //#pragma omp parallel for schedule(dynamic)
-            for (index_t k = 0; k < this->eigSpMatrix->outerSize(); ++k)
+            
+            std::vector<sparseSingle::index_t> tmpInnerIndex(nnz);
+            std::array<sparseSingle::index_t,2> tmpOuterIndex;
+            tmpOuterIndex[0] = 0;
+            tmpOuterIndex[1] = nnz;
+            if (this->transposed)  
             {
-                index_t nnzInCol = this->eigSpMatrix->outerIndexPtr()[k+1] - this->eigSpMatrix->outerIndexPtr()[k];
-                index_t offset = this->eigSpMatrix->outerIndexPtr()[k];
+                Eigen::Map<spMatTransposed_t> crs_transposed(this->getRows(),this->getCols(),nnz,this->eigSpMatrix->outerIndexPtr(),this->eigSpMatrix->innerIndexPtr(),this->eigSpMatrix->valuePtr());
                 index_t count = 0;
-
-                for (spMat_t::InnerIterator it(*this->eigSpMatrix,k); it; ++it)
+                //#pragma omp parallel for schedule(dynamic)
+                for (index_t k = 0; k < crs_transposed.outerSize(); ++k)
+                    for (Eigen::Map<spMatTransposed_t>::InnerIterator it(crs_transposed,k); it; ++it)
+                    {
+                        index_t linearIndex = this->toLinearIndex(it.row(),it.col());
+                        tmpInnerIndex[count] = linearIndex;
+                        count++;
+                    }
+            }
+            else{
+                //#pragma omp parallel for schedule(dynamic)
+                for (index_t k = 0; k < this->eigSpMatrix->outerSize(); ++k)
                 {
-                    index_t linearIndex = this->toLinearIndex(it.row(),it.col());
-                    tmpInnerIndex[offset + count] = linearIndex;
-                    count++;
-                }
-            }               
-        }
+                    index_t nnzInCol = this->eigSpMatrix->outerIndexPtr()[k+1] - this->eigSpMatrix->outerIndexPtr()[k];
+                    index_t offset = this->eigSpMatrix->outerIndexPtr()[k];
+                    index_t count = 0;
 
-        //typedef Eigen::SparseVector<float,Eigen::ColMajor,index_t> spColVec_t;
-        Eigen::Map<spMat_t> spMatAsVector(this->getRows()*this->getCols(),1,nnz,tmpOuterIndex.data(),tmpInnerIndex.data(),this->eigSpMatrix->valuePtr());
-      
+                    for (spMat_t::InnerIterator it(*this->eigSpMatrix,k); it; ++it)
+                    {
+                        index_t linearIndex = this->toLinearIndex(it.row(),it.col());
+                        tmpInnerIndex[offset + count] = linearIndex;
+                        count++;
+                    }
+                }               
+            }
+
+            //typedef Eigen::SparseVector<float,Eigen::ColMajor,index_t> spColVec_t;
+            Eigen::Map<spMat_t> spMatAsVector(this->getRows()*this->getCols(),1,nnz,tmpOuterIndex.data(),tmpInnerIndex.data(),this->eigSpMatrix->valuePtr());
+
+            //Check if we have a range
+            bool isRange = this->isConsecutiveArray(indexList4Eigen.data(),numValues);
+
+            if (isRange)
+            {   //mexPrintf("We have a block!\n");
+                index_t start = indexList4Eigen[0];
+        
+                auto block = spMatAsVector.block(start,0,numValues,1);
+                subSpMat = std::make_shared<spMat_t>(block);
+            }
+            else 
+            {   
+                typedef Eigen::Triplet<float,index_t> T;
+                std::vector<T> triplets;
+
+                std::vector<index_t> sortPattern(numValues);
+                #pragma omp parallel for schedule(static)
+                for (index_t i = 0; i < numValues; i++)
+                    sortPattern[i] = i;
+
+                std::stable_sort(std::execution::par,sortPattern.begin(),sortPattern.end(),[&indexList4Eigen](index_t i1, index_t i2) {return indexList4Eigen[i1] < indexList4Eigen[i2];});
                 
-        typedef Eigen::Triplet<float,index_t> T;
+                index_t searchIxSpVec = 0;
+                index_t searchInnerIndex;
 
-        //Indexing by Matrix Multiplication as found here: https://people.eecs.berkeley.edu/~aydin/spgemm_sisc12.pdf
-        //Build the R matrix  
-        
-        //spMat_t R(numValues,this->getRows()*this->getCols()); //outerIndexVector may become to large in csc storage
-        
-        //We explicitly create a csr_matrix here to avoid overflowing the outerIndexVector
-        Eigen::SparseMatrix<float,Eigen::RowMajor,index_t> R(numValues,this->getRows()*this->getCols());
-        mexPrintf("%dx%d Matrix initialized!",R.rows(),R.cols());
-        R.reserve(numValues);    
-        mexPrintf("Reserved Storage!");      
-        
-        #pragma omp parallel for schedule(static)
-        for (index_t i = 0; i < numValues; i++)
-        {
-            R.valuePtr()[i] = 1;
-            R.innerIndexPtr()[i] = indexList4Eigen[i];
-            R.outerIndexPtr()[i] = i;
-            //if (R.innerIndexPtr()[i] < 0)
-            //{
-            //    mexPrintf("At outer index %d we have a negative column index %d\n",i,R.innerIndexPtr()[i]);
-            //}              
+                //Now perform the search and exploit the sorting of the index string
+                //We accumulate triplets since it is difficult to know beforehand how much storage we need. 
+                //Alternatively, we could directly fill the column vector sparse storage and then perform a 
+                //sort on the vector afterwards (reusing the sortPattern storage to keep track of the index permutation)                
+                for (index_t i = 0; i < numValues; i++)
+                {
+                    //There is no more values in the matrix
+                    if (searchIxSpVec >= nnz)
+                        break;
+
+                    index_t currIx = indexList4Eigen[sortPattern[i]];
+
+                    searchInnerIndex = spMatAsVector.innerIndexPtr()[searchIxSpVec];
+                    while (searchInnerIndex < currIx)
+                    {
+                        searchIxSpVec++;
+                        searchInnerIndex = spMatAsVector.innerIndexPtr()[searchIxSpVec];                        
+                    } 
+
+                    if (searchInnerIndex == currIx)
+                        triplets.emplace_back(sortPattern[i],0,spMatAsVector.valuePtr()[searchIxSpVec]);
+                }
+
+                subSpMat = std::make_shared<spMat_t>(numValues,1);
+                subSpMat->setFromTriplets(triplets.begin(),triplets.end());
+                
+                //There's two other ways I consider doing this elegantly
+                //1) Map a Sparse Vector a' over the existing values, create a slicing matrix R (similar to row/colon indexing, we don't need Q) and perform R*a';
+                //   Indexing by Matrix Multiplication as found here: https://people.eecs.berkeley.edu/~aydin/spgemm_sisc12.pdf
+                //2) Convert the linear index list into subscripts, perform row colon indexing, and then reshape the matrix to a vector (should be less efficient?)
+                //I tried implementing 1), but it throughs bad_alloc in the matrix product
+
+                
+                //Variant 1) - gives bad_alloc in some cases for now
+                //Note that index lists are actually doubles in matlab, so we cast to actuall indices
+                //Temporary Sparse Vector
+
+                //mexPrintf("We have arbitrary indices!\n");
+                
+                //Build the R matrix  
+                
+                //spMat_t R(numValues,this->getRows()*this->getCols()); //outerIndexVector may become to large in csc storage
+                
+                //We explicitly create a csr_matrix here to avoid overflowing the outerIndexVector
+                /*
+                Eigen::SparseMatrix<float,Eigen::RowMajor,index_t> R(numValues,this->getRows()*this->getCols());
+                //mexPrintf("%dx%d Matrix initialized!",R.rows(),R.cols());
+                R.reserve(numValues);    
+                //mexPrintf("Reserved Storage!");      
+                
+                #pragma omp parallel for schedule(static)
+                for (index_t i = 0; i < numValues; i++)
+                {
+                    R.valuePtr()[i] = 1;
+                    R.innerIndexPtr()[i] = indexList4Eigen[i];
+                    R.outerIndexPtr()[i] = i;        
+                }
+                R.outerIndexPtr()[numValues] = numValues;
+                    
+                //mexPrintf("Matrix created!");
+
+                //We don't need Q as it would be a scalar 1
+
+
+                subSpMat = std::make_shared<spMat_t>(numValues,1);
+                //Perform the slicing product
+                //This product may throw bad alloc when we have very large matrices. I don't know why.
+                (*subSpMat) = R*spMatAsVector;
+                */
+            }                 
         }
-        R.outerIndexPtr()[numValues] = numValues;
-               
-        mexPrintf("Matrix created!");
+        result = new sparseSingle(subSpMat);  
 
-        //We don't need Q as it would be a scalar 1
-
-        //Perform the slicing product
-        //std::shared_ptr<spMat_t> subSpMat = std::make_shared<spMat_t>(numValues,1);
-        //subSpMat->makeCompressed();
-        //(*subSpMat) = R*(*this->eigSpMatrix);
-        (*subSpMat) = R*spMatAsVector;
-        //(*subSpMat) = (R*spMatAsVector).pruned();
-        
-
-        //Variant 2 - unfinished
-        /*
-        if(this->transposed)
-        {
-            mexErrMsgTxt("Transpose not implemented!");
-        }
-        
-        Matlab2EigenIndexListConverter indexList4Eigen(indexList);
-                   
-        typedef Eigen::Triplet<float_t,index_t> T;
-        
-        //Build the R & Q matrix
-
-        std::vector<T> tripletListR(numValues);
-        std::vector<T> tripletListQ(numValues);
-        
-        #pragma omp parallel for schedule(static)
-        for (index_t i = 0; i < numValues; i++)
-        {
-            tripletListR[i] = T(i,this->linearIndexToRowIndex(indexList4Eigen[i]),1);
-            tripletListQ[i] = T(this->linearIndexToColIndex(indexList4Eigen[i]),i,1);
-        }
-
-        spMat_t R(numValues,this->getRows());
-        R.setFromTriplets(tripletListR.begin(),tripletListR.end());
-        spMat_t Q(this->getCols(),numValues);      
-        Q.setFromTriplets(tripletListQ.begin(),tripletListQ.end());
-        
-        //Now perform the slicing product
-        std::shared_ptr<spMat_t> subSpMat = std::make_shared<spMat_t>(numValues,numValues);
-        //subSpMat->makeCompressed();
-        (*subSpMat) = R*(*this->eigSpMatrix)*Q;                 
-        */
-        result = new sparseSingle(subSpMat);     
+        if (!isColumnVector)   
+            result->transposed = true;
     }
     else{
         mexErrMsgTxt("Unsupported index type!");
