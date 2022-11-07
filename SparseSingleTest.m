@@ -1,8 +1,43 @@
 classdef SparseSingleTest < matlab.unittest.TestCase
 
     methods (Test)
+        function test_constructBasics(testCase)
+            test = sparse(eye(2));
+            tests = SparseSingle(test);
+            testCase.fatalAssertClass(tests,'SparseSingle');
+            testCase.fatalAssertTrue(issparse(tests));
+            testCase.fatalAssertTrue(isnumeric(tests));
+            testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));
+            testCase.fatalAssertEqual(nnz(test),nnz(tests));
+            testCase.fatalAssertEqual(size(test),size(tests));
+        end
+
+        function test_transpose(testCase)
+            test = sprand(5,10,0.25);
+            tests = SparseSingle(test);
+
+            testt = test';
+            testst = tests';
+            testCase.fatalAssertEqual(size(testt),size(testst));            
+        end
+
+        function test_full(testCase)
+            test = sprand(5,10,0.25);
+            tests = SparseSingle(test);
+
+            testf = full(test);
+            testsf = full(tests);
+            testCase.verifyEqual(size(testf),size(testsf));
+            testCase.verifyEqual(norm(testf,'fro'),double(norm(testsf,'fro')),'relTol',1e-5);
+
+            testf = full(test');
+            testsf = full(tests');
+            testCase.verifyEqual(size(testf),size(testsf));
+
+        end
+
         function test_mtimes_Ax(testCase)
-            test = sparse(eye(2))
+            test = sparse(eye(2));
             hello = SparseSingle(test);
             v = [1; 1];
             vs = single(v);
@@ -14,7 +49,7 @@ classdef SparseSingleTest < matlab.unittest.TestCase
         end
 
         function test_mtimes_Atx(testCase)
-            test = sparse(eye(2))
+            test = sparse(eye(2));
             hello = SparseSingle(test);
             v = [1; 1];
             vs = single(v);
