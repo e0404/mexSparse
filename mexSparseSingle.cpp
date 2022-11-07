@@ -85,13 +85,29 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     {
         // Check parameters
         if (nlhs < 0 || nlhs > 1)
-            mexErrMsgTxt("size: Unexpected arguments.");
+            mexErrMsgTxt("full: Unexpected arguments.");
         try {
             sparseSingle_instance->disp();        
         }
         catch (...)
         {
             mexErrMsgTxt("disp: Unexpected access violation.");
+        }
+        return;
+    }
+
+    if (!strcmp("full",cmd))
+    {
+        // Check parameters
+        if (nlhs < 0 || nlhs > 1)
+            mexErrMsgTxt("full: Unexpected arguments.");
+        try {
+            mxArray* result = sparseSingle_instance->full();
+            plhs[0] = result;       
+        }
+        catch (...)
+        {
+            mexErrMsgTxt("full: Unexpected access violation.");
         }
         return;
     }

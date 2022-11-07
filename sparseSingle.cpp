@@ -495,6 +495,21 @@ sparseSingle::index_t sparseSingle::linearIndexToRowIndex(const sparseSingle::in
     return linIx % this->getRows();        
 }
 
+mxArray* sparseSingle::full() const 
+{
+    mxArray* fullMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),mxSINGLE_CLASS,mxREAL);
+    mxSingle* fullMatrix_data = mxGetSingles(fullMatrix);
+
+    Eigen::Map<mxMatSingle_t> fullMatrixMap(fullMatrix_data,this->getRows(),this->getCols());
+    
+    if (this->transposed)
+        fullMatrixMap = this->eigSpMatrix->transpose().toDense();
+    else
+        fullMatrixMap = this->eigSpMatrix->toDense();
+
+    return fullMatrix;
+}
+
 //// Linear Algebra ////
 
 sparseSingle* sparseSingle::transpose() const {

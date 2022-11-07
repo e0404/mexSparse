@@ -35,6 +35,39 @@ classdef SparseSingle
         function sz = size(this)
             sz = mexSparseSingle('size',this.objectHandle);
         end
+        
+        %% Plus & Minus
+        function ret = plus(A,B)
+            error('sparseSingle:missingImplementation','plus operator not yet implemented!');
+        end
+
+        function ret = minus(A,B)
+            error('sparseSingle:missingImplementation','minus operator not yet implemented!');
+        end
+
+        function ret = uminus(this)            
+            error('sparseSingle:missingImplementation','negation not yet implemented!');
+        end
+        
+        %% sparsity oprations
+        function ret = full(this)
+            ret = mexSparseSingle('full',this.objectHandle);
+        end
+
+        function ret = issparse(this)
+            ret = true;
+        end
+
+        function ret = isa(this,typeStr)
+           ret = false;
+           if strcmpi(typeStr,'numeric') || strcmpi(typeStr,'SparseSingle') || strcmpi(typeStr,'single')
+              ret = true;
+           end
+        end
+
+        function ret = isnumeric(this)
+           ret = true;
+        end
 
         %% disp
         function disp(this)

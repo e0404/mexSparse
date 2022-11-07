@@ -13,6 +13,9 @@ public:
     typedef Eigen::SparseMatrix<float,Eigen::ColMajor,index_t> spMat_t;
     typedef Eigen::SparseMatrix<float,Eigen::RowMajor,index_t> spMatTransposed_t;
 
+    typedef Eigen::Matrix<float,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor> mxMatSingle_t;
+    typedef Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor> mxMatDouble_t;
+
     /// @brief construct an empty sparse matrix
     sparseSingle();
 
@@ -50,6 +53,10 @@ public:
     /// @brief Transposes the matrix by setting a transpose flag
     /// @return Pointer to transposed single sparse matrix. Will only hold a shared copy under the hood
     sparseSingle* transpose() const;
+
+    /// @brief Get dense matrix as mxArray
+    /// @return Dense Matrix as mxArray
+    mxArray* full() const;
 
     //// Indexing ////
 
