@@ -9,8 +9,8 @@
 
 sparseSingle::sparseSingle() 
 { 
-        this->eigSpMatrix = std::make_shared<spMat_t>();
-    }
+    this->eigSpMatrix = std::make_shared<spMat_t>();
+}
 
 sparseSingle::sparseSingle(std::shared_ptr<spMat_t> eigSpMatrix_) 
 {
@@ -21,8 +21,7 @@ sparseSingle::sparseSingle(const mxArray *sparseDouble)
 {
         if (!mxIsSparse(sparseDouble))
         {
-            mexErrMsgIdAndTxt("MATLAB:sparseInternalOutput:invalidInputType",
-                              "First argument must be sparse.");
+            throw(MexException("sparseSingle:invalidInputType","First argument must be sparse."));                
         }
 
         mwIndex *ir, *jc; // ir: row indec, jc: encode row index and values in pr per coloumn
@@ -48,8 +47,13 @@ sparseSingle::sparseSingle(const mxArray *sparseDouble)
             std::transform(std::execution::par_unseq, ir, ir+nnz, this->eigSpMatrix->innerIndexPtr(), [](mwIndex i) -> index_t { return static_cast<index_t>(i);});
             std::transform(std::execution::par_unseq, jc, jc+(nCols+1), this->eigSpMatrix->outerIndexPtr(), [](mwIndex i) -> index_t { return static_cast<index_t>(i);});
         }
-        catch (...) {
-            mexErrMsgIdAndTxt("MATLAB:sparseInternalOutput:invalidInputType","Eigen Map could not be constructed from sparse matrix!");
+        catch (const std::exception& e) {
+            std::string msg = std::string("Eigen Map could not be constructed from sparse matrix! Caught exception ") + e.what();      
+            throw(MexException("sparseSingle:errorOnConstruct",msg));
+        }
+        catch (...)
+        {
+            throw(MexException("sparseSingle:errorOnConstruct","Eigen Map could not be constructed from sparse matrix!"));
         }
 
         // no need to free memory because matlab should handle memory management of return values
@@ -83,8 +87,19 @@ mwSize sparseSingle::getRows() const {
         return this->eigSpMatrix->rows();
 }
 
-//// Indexing ////
+mxArray* sparseSingle::size() const {
+    mxArray* szArray = mxCreateDoubleMatrix(1,2,mxREAL);
+    double* pr = mxGetDoubles(szArray);
+    pr[0] = static_cast<double>(this->getRows());
+    pr[1] = static_cast<double>(this->getCols());
+    return szArray;
+}
 
+mxArray* sparseSingle::nnz() const {
+    return mxCreateDoubleScalar((double) this->getNnz());
+}
+
+//// Indexing ////
  
 sparseSingle* sparseSingle::rowColIndexing(const mxArray * const rowIndex, const mxArray * const colIndex) const
 {
@@ -124,7 +139,8 @@ sparseSingle* sparseSingle::rowColIndexing(const mxArray * const rowIndex, const
     {
         if(this->transposed)
         {
-            mexErrMsgTxt("Transpose not implemented!");
+            //mexErrMsgTxt("Transpose not implemented!");
+            throw(MexException("sparseSingle:implementationMissing","Transpose not implemented!"));
         }
         else{
             
@@ -154,7 +170,7 @@ sparseSingle* sparseSingle::rowColIndexing(const mxArray * const rowIndex, const
 
         if(this->transposed)
         {
-            mexErrMsgTxt("Transpose not implemented!");
+            throw(MexException("sparseSingle:implementationMissing","Transpose not implemented!"));
         }
         else
         {            
@@ -201,7 +217,7 @@ sparseSingle* sparseSingle::allValues() const
 
     //Sanity Check
     if (!(this->eigSpMatrix->isCompressed()))
-        mexErrMsgTxt("The matrix is not compressed! This is unexpected behavior!");
+        throw(MexException("sparseSingle:invalidMatrixState","The matrix is not compressed! This is unexpected behavior!"));
 
     std::copy(std::execution::par_unseq,this->eigSpMatrix->valuePtr(),this->eigSpMatrix->valuePtr() + nnz, subSpMat->valuePtr());
     subSpMat->outerIndexPtr()[0] = index_t(0);
@@ -287,7 +303,7 @@ sparseSingle* sparseSingle::linearIndexing(const mxArray* indexList) const
         //Normal double indexing list
         mwSize nDim = mxGetNumberOfDimensions(indexList);
         if (nDim > 2)
-            mexErrMsgTxt("Indexing list has dimensionality bigger than 2!");
+            throw(MexException("sparseSingle:invalidIndex","Indexing list has dimensionality bigger than 2!"));
     
         const mwSize* ixDim = mxGetDimensions(indexList);
 
@@ -305,7 +321,7 @@ sparseSingle* sparseSingle::linearIndexing(const mxArray* indexList) const
             isColumnVector = true;
         }
         else
-            mexErrMsgTxt("Only vector index lists are implemented for now!");
+            throw(MexException("sparseSingle:implementationMissing","Only vector index lists are implemented for now!"));
 
         index_t nnz = this->getNnz();
 
@@ -472,7 +488,7 @@ sparseSingle* sparseSingle::linearIndexing(const mxArray* indexList) const
             result->transposed = true;
     }
     else{
-        mexErrMsgTxt("Unsupported index type!");
+        throw(MexException("sparseSingle:invalidIndex","Unsupported index type!"));
     }
 
     return result;
@@ -519,13 +535,13 @@ mxArray* sparseSingle::addDense(const mxArray* denseMx) const
     bool isScalar = (m == 1) & (n == 1);
     if (mxType != mxSINGLE_CLASS && !isScalar)
     {
-        mexErrMsgIdAndTxt("sparseSingle:wrongDataType","Matrix addition only implemented for single/double!");
+        throw(MexException("sparseSingle:wrongDataType","Matrix addition only implemented for single/double!"));
     }
     
     bool sizeMatch = (m == this->getRows()) & (n == this->getCols());
     
     if (!isScalar && !sizeMatch)
-        mexErrMsgIdAndTxt("sparseSingle:wrongOperandSize","Matrix addition only implemented for scalars and same shape! Implicit expansion not yet supported!");
+        throw(MexException("sparseSingle:wrongOperandSize","Matrix addition only implemented for scalars and same shape! Implicit expansion not yet supported!"));
 
     mxArray* resultMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),mxSINGLE_CLASS,mxREAL);
     mxSingle* resultMatrix_data = mxGetSingles(resultMatrix);
@@ -567,8 +583,19 @@ sparseSingle* sparseSingle::transpose() const {
     return transposedCopy;
 }
 
-mxArray* sparseSingle::timesVec(const mxSingle* vals,mwSize n) const 
+mxArray* sparseSingle::timesVec(const mxArray* vals_) const 
 {
+    mwSize nCols = mxGetN(vals_); 
+    mwSize nRows = mxGetM(vals_);
+    if (nCols != 1 && nRows != 1)
+        throw(MexException("sparseSingle:timesVec:wrongOperand","Operand is not a vector!"));
+    
+    sparseSingle::index_t n = mxGetNumberOfElements(vals_);
+    if (n != this->getCols())
+        throw(MexException("sparseSingle:timesVec:wrongSize","Operand Vector has incompatible size!"));
+    
+    const mxSingle* vals = mxGetSingles(vals_);
+
     //Create a Map to the Eigen vector
     Eigen::Map<const Eigen::VectorXf> vecMap(vals,n);
     //Create the result array and map eigen vector around it - when transposed, the getRows is already considering this
@@ -586,8 +613,19 @@ mxArray* sparseSingle::timesVec(const mxSingle* vals,mwSize n) const
     return result;
 }
 
-mxArray* sparseSingle::vecTimes(const mxSingle* vals,mwSize n) const 
+mxArray* sparseSingle::vecTimes(const mxArray* vals_) const 
 {
+    mwSize nCols = mxGetN(vals_); 
+    mwSize nRows = mxGetM(vals_);
+    if (nCols != 1 && nRows != 1)
+        throw(MexException("sparseSingle:vecTimes:wrongOperand","Operand is not a vector!"));
+    
+    sparseSingle::index_t n = mxGetNumberOfElements(vals_);
+    if (n != this->getRows())
+        throw(MexException("sparseSingle:vecTimes:wrongSize","Operand Vector has incompatible size!"));
+    
+    const mxSingle* vals = mxGetSingles(vals_);
+
     //Create a Map to the Eigen vector
     Eigen::Map<const Eigen::VectorXf> vecMap(vals,n);
 
@@ -606,16 +644,22 @@ mxArray* sparseSingle::vecTimes(const mxSingle* vals,mwSize n) const
     return result;
 }
 
-sparseSingle* sparseSingle::timesScalar(const mxSingle val) const
+sparseSingle* sparseSingle::timesScalar(const mxArray* val_) const
 {
+    if (!mxIsScalar(val_))
+        throw(MexException("sparseSingle:mexInterface:invalidMexCall:timesScalar","Input needs to be scalar!"));
+    const mxSingle* val = mxGetSingles(val_);
+    mxSingle scalar = val[0];
+    
     index_t numValues = this->getRows()*this->getCols();
     index_t nnz = this->getNnz();
 
     std::shared_ptr<spMat_t> scaledSpMat = std::make_shared<spMat_t>();
-    (*scaledSpMat) = val*(*this->eigSpMatrix);
+    (*scaledSpMat) = scalar*(*this->eigSpMatrix);
 
     //return the bare array
     sparseSingle* scaledMatrix = new sparseSingle(scaledSpMat);
+    scaledMatrix->transposed = this->transposed;
 
     return scaledMatrix;
 }

@@ -65,8 +65,8 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.verifyTrue(all(testM - testsM < eps('single')*testM,'all'));
 
             %Wrong size error
-            testCase.verifyError(@() ones(3) + tests,'');
-            testCase.verifyError(@() tests + ones(3),'');
+            testCase.verifyError(@() ones(3) + tests,'sparseSingle:wrongDataType');
+            testCase.verifyError(@() tests + ones(3),'sparseSingle:wrongDataType');
         end
             
 
@@ -141,7 +141,7 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             result_s = 2*tests;
             result_t_s = 2*tests_t;
 
-            testCase.verifySize(result_s,size(result_t));
+            testCase.verifySize(result_s,size(result));
             testCase.verifySize(result_t_s,size(result_t));             
         end
 

@@ -3,7 +3,31 @@
 #include "mex.h"
 #include <Eigen/Core>
 #include <Eigen/Sparse>
+#include <exception>
+#include <string>
 
+class MexException : public std::exception
+{
+    public:       
+        explicit MexException(const std::string& matlabErrID, const std::string& matlabErrMessage)
+            : errID(matlabErrID), errMessage(matlabErrMessage) {}
+
+        virtual ~MexException() noexcept {}
+
+        virtual const char* what() const override
+        {                        
+            return this->errMessage.c_str();
+        }
+
+        virtual const char* id() const noexcept
+        {
+            return this->errID.c_str();
+        }
+
+    protected:
+        std::string errID;
+        std::string errMessage;
+}; 
 
 class sparseSingle
 {
@@ -35,22 +59,24 @@ public:
     /// @param vals 
     /// @param n 
     /// @return a non-sparse single vector
-    mxArray* timesVec(const mxSingle* vals,mwSize n) const;
+    mxArray* timesVec(const mxArray* vals) const;
 
     /// @brief Vector/Matrix product
     /// @param vals 
     /// @param n 
     /// @return a non-sparse single vector
-    mxArray* vecTimes(const mxSingle* vals,mwSize n) const;
+    mxArray* vecTimes(const mxArray* vals) const;
 
     /// @brief Multiplication with Scalar
     /// @param scalar
     /// @return scaled sparse single matrix
-    sparseSingle* timesScalar(const mxSingle val) const;
+    sparseSingle* timesScalar(const mxArray* val) const;
 
     mwSize getNnz() const;
     mwSize getCols() const;
     mwSize getRows() const;
+    mxArray* size() const;
+    mxArray* nnz() const;
 
     /// @brief Transposes the matrix by setting a transpose flag
     /// @return Pointer to transposed single sparse matrix. Will only hold a shared copy under the hood

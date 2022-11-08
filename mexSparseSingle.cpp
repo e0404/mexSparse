@@ -10,35 +10,40 @@
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {	
     // Get the command string
-    char cmd[64];
-	if (nrhs < 1 || mxGetString(prhs[0], cmd, sizeof(cmd)))
-		mexErrMsgTxt("First input should be a command string less than 64 characters long.");
+    char cmd_[128];
+	if (nrhs < 1 || mxGetString(prhs[0], cmd_, sizeof(cmd_)))
+		mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall","First input should be a command string less than 128 characters long.");
+
+    std::string cmd(cmd_);
         
     // New
-    if (!strcmp("new", cmd)) {
+    if (cmd == "new") {
         // Check parameters
         if (nlhs != 1)
-            mexErrMsgTxt("New: One output expected.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:New","One output expected.");
         // Return a handle to a new C++ instance
         if (nrhs == 1)
             plhs[0] = convertPtr2Mat<sparseSingle>(new sparseSingle());
         else if (nrhs == 2) {
             if (!mxIsSparse(prhs[1]))
             {
-                mexErrMsgIdAndTxt("MATLAB:sparseInternalOutput:invalidInputType",
-                                  "single sparse matrix can only be constructed from double sparse matrix.");
+                mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:New","single sparse matrix can only be constructed from double sparse matrix.");
             }
             try
             {
                 plhs[0] = convertPtr2Mat<sparseSingle>(new sparseSingle(prhs[1]));
             }
-            catch (...)
+            catch (const MexException& e)
             {
-                mexErrMsgIdAndTxt("MATLAB:sparseInternalOutput:invalidInputType", "single sparse matrix could not be constructed from double.");
+                mexErrMsgIdAndTxt(e.id(), e.what());            
+            }
+            catch(...)
+            {
+                throw;
             }
         }
         else
-            mexErrMsgTxt("New: Invalid Input.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:New","Input invalid!");
         // We return now, as the object is constructed
         return;
     }    
@@ -46,198 +51,210 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     // For all other purposes, we need to pass the class handle as second argument.
     //Check there is a second input, which should be the class instance handle
     if (nrhs < 2)
-		mexErrMsgTxt("Second input should be a class instance handle.");
+		mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall","Second input should be a class instance handle.");
     
     // Get the class instance pointer from the second input
     sparseSingle* sparseSingle_instance = convertMat2Ptr<sparseSingle>(prhs[1]);
     
-    if (!strcmp("nnz",cmd))
+    if (cmd == "nnz")
     {
         // Check parameters
         if (nlhs < 0 || nlhs > 1)
-            mexErrMsgTxt("nnz: Unexpected arguments.");
-        mwSize nnz = sparseSingle_instance->getNnz();
-        plhs[0] = mxCreateDoubleScalar((double) nnz);
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:nnz", "Unexpected Number of arguments!");
+        plhs[0] = sparseSingle_instance->nnz();        
         return;
     }
 
-    if (!strcmp("size",cmd))
+    if (cmd == "size")
     {
         // Check parameters
         if (nlhs < 0 || nlhs > 1)
-            mexErrMsgTxt("size: Unexpected arguments.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:size","Unexpected Number of arguments!");
         try {
-            mxArray* szArray = mxCreateDoubleMatrix(1,2,mxREAL);
-            double* pr = mxGetPr(szArray);
-            pr[0] = static_cast<double>(sparseSingle_instance->getRows());
-            pr[1] = static_cast<double>(sparseSingle_instance->getCols());
-            plhs[0] = szArray;
+            plhs[0] = sparseSingle_instance->size();
         }
-        catch (...)
+        catch (const MexException& e)
         {
-            mexErrMsgTxt("size: Unexpected access violation.");
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
+        catch(...)
+        {
+            throw;
         }
 
         return;
     }
 
-    if (!strcmp("disp",cmd))
+    if (cmd == "disp")
     {
         // Check parameters
         if (nlhs < 0 || nlhs > 1)
-            mexErrMsgTxt("full: Unexpected arguments.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:disp","Unexpected Number of arguments!");
         try {
             sparseSingle_instance->disp();        
         }
-        catch (...)
+        catch (const MexException& e)
         {
-            mexErrMsgTxt("disp: Unexpected access violation.");
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
+        catch(...)
+        {
+            throw;
         }
         return;
     }
 
-    if (!strcmp("full",cmd))
+    if (cmd == "full")
     {
         // Check parameters
         if (nlhs < 0 || nlhs > 1)
-            mexErrMsgTxt("full: Unexpected arguments.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:full","Unexpected Number of arguments!");
         try {
             mxArray* result = sparseSingle_instance->full();
             plhs[0] = result;       
         }
-        catch (...)
+        catch (const MexException& e)
         {
-            mexErrMsgTxt("full: Unexpected access violation.");
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
+        catch(...)
+        {
+            throw;
         }
         return;
     }
 
-    if (!strcmp("addDense",cmd))
+    if (cmd == "addDense")
     {
         if (nlhs < 0 || nlhs > 1 || nrhs != 3)
-            mexErrMsgTxt("addDense: Unexpected arguments.");
-        try {
-            const mxSingle* vals = mxGetSingles(prhs[2]);            
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:addDense","Unexpected Number of arguments!");
+        try {           
             mxArray* result = sparseSingle_instance->addDense(prhs[2]);
             plhs[0] = result;
         }
-        catch(std::bad_alloc &e)
+        catch (const MexException& e)
         {
-            mexErrMsgIdAndTxt("mexSparseSingle:outOfMemory","Out of Memory (std::exception: %s)",e.what());
-        }
-        catch(std::exception &e)
-        {
-            mexErrMsgIdAndTxt("mexSparseSingle:stlError","Caught std::exception: %s",e.what());
+            mexErrMsgIdAndTxt(e.id(), e.what());            
         }
         catch(...)
         {
-            mexErrMsgIdAndTxt("mexSparseSingle:unknownError","addDense: Addition failed for unknown reason!");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:addDense","Addition failed for unknown reason!");
         }
         return;
     }
 
-    if (!strcmp("timesVec",cmd))
+    if (cmd == "timesVec")
     {
         if (nlhs < 0 || nlhs > 1)
-            mexErrMsgTxt("timesVec: Unexpected arguments.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:timesVec","Unexpected Number of arguments!");
         try {
-            const mxSingle* vals = mxGetSingles(prhs[2]);
-            sparseSingle::index_t n = mxGetNumberOfElements(prhs[2]);
-            mxArray* result = sparseSingle_instance->timesVec(vals,n);
-            plhs[0] = result;
+            plhs[0] = sparseSingle_instance->timesVec(prhs[2]);             
+        }
+        catch (const MexException& e)
+        {
+            mexErrMsgIdAndTxt(e.id(), e.what());            
         }
         catch(...)
         {
-            mexErrMsgTxt("timesVec: Product failed.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:timesVec","Product failed for unknown reason!");
         }
         return;
     }
 
-    if (!strcmp("vecTimes",cmd))
+    if (cmd == "vecTimes")
     {
         if (nlhs < 0 || nlhs > 1)
-            mexErrMsgTxt("vecTimes: Unexpected arguments.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:vecTimes","Unexpected Number of arguments!");
         try {
-            const mxSingle* vals = mxGetSingles(prhs[2]);
-            sparseSingle::index_t n = mxGetNumberOfElements(prhs[2]);
-            mxArray* result = sparseSingle_instance->vecTimes(vals,n);
-            plhs[0] = result;
+            plhs[0] = sparseSingle_instance->vecTimes(prhs[2]);            
+        }
+        catch (const MexException& e)
+        {
+            mexErrMsgIdAndTxt(e.id(), e.what());            
         }
         catch(...)
         {
-            mexErrMsgTxt("timesVec: Product failed.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:vecTimes","Product failed for unknown reason!");
         }
         return;
     }
 
-    if (!strcmp("timesScalar",cmd))
+    if (cmd == "timesScalar")
     {
         if (nlhs < 0 || nlhs > 1)
-            mexErrMsgTxt("vecTimes: Unexpected arguments.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:timesScalar","Unexpected Number of arguments!");
         try {
-            if (mxIsScalar(prhs[2]))
-                mexErrMsgTxt("timesScalar: Unexpected arguments.");
-            const mxSingle* vals = mxGetSingles(prhs[2]);
-            mxSingle scalar = vals[0];
-            sparseSingle* result = sparseSingle_instance->timesScalar(scalar);
+            sparseSingle* result = sparseSingle_instance->timesScalar(prhs[2]);
             plhs[0] = convertPtr2Mat<sparseSingle>(result);
         }
+        catch (const MexException& e)
+        {
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
         catch(...)
         {
-            mexErrMsgTxt("timesVec: Product failed.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:timesScalar","Product with Scalar failed for unknown reason!");
         }
         return;
     }
 
-    if (!strcmp("transpose",cmd))
+    if (cmd == "transpose")
     {
         if (nlhs < 0 || nlhs > 1 || nrhs > 2)
-            mexErrMsgTxt("transpose: Unexpected arguments.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:transpose","Unexpected Number of arguments!");
         try {
             plhs[0] = convertPtr2Mat<sparseSingle>(sparseSingle_instance->transpose());
         }
+        catch (const MexException& e)
+        {
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
         catch(...)
         {
-            mexErrMsgTxt("transpose: Transposing failed.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:transpose","Transpose failed for unknown reason!");
         }
         return;
     }
 
-    if (!strcmp("subsrefRowCol",cmd))
+    if (cmd == "subsrefRowCol")
     {
         if (nlhs < 0 || nlhs > 1 || nrhs != 4)
-            mexErrMsgTxt("subsrefRowCol: Unexpected arguments.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:subsrefRowCol","Unexpected Number of arguments!");
         try {
             //mxArray* result = sparseSingle_instance->linearIndexing(prhs[2]);
             
             sparseSingle* result = sparseSingle_instance->rowColIndexing(prhs[2],prhs[3]);
             plhs[0] = convertPtr2Mat<sparseSingle>(result);
         }
+        catch (const MexException& e)
+        {
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
         catch(...)
         {
-            mexErrMsgTxt("subsrefRowCol: Unexpected arguments.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:subsrefRowCol","Indexing failed for unknown reason!");
         }
         return;
     }
 
     
-    if (!strcmp("linearIndexing",cmd))
+    if (cmd == "linearIndexing")
     {
         if (nlhs < 0 || nlhs > 1 || nrhs != 3)
-            mexErrMsgTxt("linear indexing: Unexpected arguments.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:linearIndexing","Unexpected Number of arguments!");
 
         try {
             sparseSingle* result = sparseSingle_instance->linearIndexing(prhs[2]);
             //result = sparseSingle_instance->allValues()
             plhs[0] = convertPtr2Mat<sparseSingle>(result);
         }
-        catch(std::exception &e)
+        catch (const MexException& e)
         {
-            mexErrMsgIdAndTxt("mexSparseSingle:stl_error","Exception from Stl: %s",e.what());
+            mexErrMsgIdAndTxt(e.id(), e.what());            
         }
         catch(...)
         {
-            mexErrMsgTxt("linear Indexing failed.");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:linearIndexing","Indexing failed for unknown reason!");
         }
         return;
     }
@@ -245,15 +262,15 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 
 
     // Delete
-    if (!strcmp("delete", cmd)) {
+    if (cmd == "delete") {
         // Destroy the C++ object
         destroyObject<sparseSingle>(prhs[1]);
         // Warn if other commands were ignored
         if (nlhs != 0 || nrhs != 2)
-            mexWarnMsgTxt("Delete: Unexpected arguments ignored.");
+            mexWarnMsgTxt("sparseSingle Delete: Unexpected arguments ignored.");
         return;
     }
     
     // Got here, so command not recognized
-    mexErrMsgTxt("Command not recognized.");
+    mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall","Command not recognized.");
 }

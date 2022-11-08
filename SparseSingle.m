@@ -105,7 +105,7 @@ classdef SparseSingle
                 end
                 
                 if isscalar(arg1)
-                    ret = mexSparseSingle('timesScalar',arg2.objectHandle,arg1);
+                    ret = SparseSingle(mexSparseSingle('timesScalar',arg2.objectHandle,arg1));
                 elseif numel(arg1) == arg2.nRows
                     ret = mexSparseSingle('vecTimes',arg2.objectHandle,arg1);
                 else
@@ -124,7 +124,7 @@ classdef SparseSingle
                 end
 
                 if isscalar(arg2)
-                    ret = mexSparseSingle('timesScalar',arg1.objectHandle,arg2);
+                    ret = SparseSingle(mexSparseSingle('timesScalar',arg1.objectHandle,arg2));
                 elseif numel(arg2) == arg1.nCols
                     ret = mexSparseSingle('timesVec',arg1.objectHandle,arg2);
                 else
