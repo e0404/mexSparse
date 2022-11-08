@@ -112,6 +112,30 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         return;
     }
 
+    if (!strcmp("addDense",cmd))
+    {
+        if (nlhs < 0 || nlhs > 1 || nrhs != 3)
+            mexErrMsgTxt("addDense: Unexpected arguments.");
+        try {
+            const mxSingle* vals = mxGetSingles(prhs[2]);            
+            mxArray* result = sparseSingle_instance->addDense(prhs[2]);
+            plhs[0] = result;
+        }
+        catch(std::bad_alloc &e)
+        {
+            mexErrMsgIdAndTxt("mexSparseSingle:outOfMemory","Out of Memory (std::exception: %s)",e.what());
+        }
+        catch(std::exception &e)
+        {
+            mexErrMsgIdAndTxt("mexSparseSingle:stlError","Caught std::exception: %s",e.what());
+        }
+        catch(...)
+        {
+            mexErrMsgIdAndTxt("mexSparseSingle:unknownError","addDense: Addition failed for unknown reason!");
+        }
+        return;
+    }
+
     if (!strcmp("timesVec",cmd))
     {
         if (nlhs < 0 || nlhs > 1)

@@ -38,7 +38,18 @@ classdef SparseSingle
         
         %% Plus & Minus
         function ret = plus(A,B)
-            error('sparseSingle:missingImplementation','plus operator not yet implemented!');
+            %error('sparseSingle:missingImplementation','plus operator not yet implemented!');
+            if isempty(A) || isempty(B)
+                error('Arrays have incompatible sizes for this operation');            
+
+            elseif isa(A, 'SparseSingle') && isnumeric(B) && ~issparse(B)
+                ret = mexSparseSingle('addDense',A.objectHandle,B);               
+                % matrix * vector
+            elseif isa(B, 'SparseSingle') && isnumeric(A) && ~issparse(A)
+                ret = mexSparseSingle('addDense',B.objectHandle,A);               
+            else
+                error('Inputs %s & %s not supported', class(A),class(B));
+            end
         end
 
         function ret = minus(A,B)

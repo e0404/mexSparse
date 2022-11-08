@@ -33,8 +33,42 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testf = full(test');
             testsf = full(tests');
             testCase.verifyEqual(size(testf),size(testsf));
-
         end
+
+        function test_plus(testCase)
+            test = sprand(5,10,0.25);
+            tests = SparseSingle(test); 
+            
+            %Scalar Addition
+            test5 = test + 5;
+            tests5 = tests + 5;
+            testCase.assertEqual(issparse(test5),issparse(tests5)); %Equal behavior
+            testCase.verifySize(tests5,size(test5));
+            testCase.verifyTrue(all(test5 - tests5 < eps('single')*test5,'all'));            
+
+            tests5 = 5 + tests;
+            testCase.assertEqual(issparse(test5),issparse(tests5)); %Equal behavior
+            testCase.verifySize(tests5,size(test5));
+            testCase.verifyTrue(all(test5 - tests5 < eps('single')*test5,'all'));
+            
+            
+            %Matrix addition
+            testM = test + ones(size(test));
+            testsM = tests + ones(size(test),'single');
+            testCase.assertEqual(issparse(testM),issparse(testsM)); %Equal behavior
+            testCase.verifySize(testsM,size(testM));
+            testCase.verifyTrue(all(testM - testsM < eps('single')*testM,'all'));
+            
+            testsM = ones(size(test),'single') + tests;
+            testCase.assertEqual(issparse(testM),issparse(testsM)); %Equal behavior
+            testCase.verifySize(testsM,size(testM));
+            testCase.verifyTrue(all(testM - testsM < eps('single')*testM,'all'));
+
+            %Wrong size error
+            testCase.verifyError(@() ones(3) + tests,'');
+            testCase.verifyError(@() tests + ones(3),'');
+        end
+            
 
         function test_mtimes_Ax(testCase)
             test = sparse(eye(2));

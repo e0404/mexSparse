@@ -13,8 +13,10 @@ public:
     typedef Eigen::SparseMatrix<float,Eigen::ColMajor,index_t> spMat_t;
     typedef Eigen::SparseMatrix<float,Eigen::RowMajor,index_t> spMatTransposed_t;
 
-    typedef Eigen::Matrix<float,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor> mxMatSingle_t;
-    typedef Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor> mxMatDouble_t;
+    typedef Eigen::Matrix<float,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor> mxSingleAsMatrix_t;
+    typedef Eigen::Array<float,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor> mxSingleAsArray_t;
+    typedef Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor> mxDoubleAsMatrix_t;
+    typedef Eigen::Array<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor> mxDoubleAsArray_t;
 
     /// @brief construct an empty sparse matrix
     sparseSingle();
@@ -57,6 +59,11 @@ public:
     /// @brief Get dense matrix as mxArray
     /// @return Dense Matrix as mxArray
     mxArray* full() const;
+
+    /// @brief Add a dense single matrix to sparse matrix
+    /// @param denseMx single matrix as mxArray
+    /// @return Dense single matrix
+    mxArray* addDense(const mxArray* denseMx) const;
 
     //// Indexing ////
 

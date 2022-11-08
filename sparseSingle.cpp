@@ -500,7 +500,7 @@ mxArray* sparseSingle::full() const
     mxArray* fullMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),mxSINGLE_CLASS,mxREAL);
     mxSingle* fullMatrix_data = mxGetSingles(fullMatrix);
 
-    Eigen::Map<mxMatSingle_t> fullMatrixMap(fullMatrix_data,this->getRows(),this->getCols());
+    Eigen::Map<mxSingleAsMatrix_t> fullMatrixMap(fullMatrix_data,this->getRows(),this->getCols());
     
     if (this->transposed)
         fullMatrixMap = this->eigSpMatrix->transpose().toDense();
@@ -510,6 +510,53 @@ mxArray* sparseSingle::full() const
     return fullMatrix;
 }
 
+mxArray* sparseSingle::addDense(const mxArray* denseMx) const
+{
+    mxClassID mxType = mxGetClassID(denseMx);
+    mwSize m = mxGetM(denseMx);
+    mwSize n = mxGetN(denseMx);
+    
+    bool isScalar = (m == 1) & (n == 1);
+    if (mxType != mxSINGLE_CLASS && !isScalar)
+    {
+        mexErrMsgIdAndTxt("sparseSingle:wrongDataType","Matrix addition only implemented for single/double!");
+    }
+    
+    bool sizeMatch = (m == this->getRows()) & (n == this->getCols());
+    
+    if (!isScalar && !sizeMatch)
+        mexErrMsgIdAndTxt("sparseSingle:wrongOperandSize","Matrix addition only implemented for scalars and same shape! Implicit expansion not yet supported!");
+
+    mxArray* resultMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),mxSINGLE_CLASS,mxREAL);
+    mxSingle* resultMatrix_data = mxGetSingles(resultMatrix);
+    Eigen::Map<mxSingleAsMatrix_t> resultMatrixMap(resultMatrix_data,this->getRows(),this->getCols());
+
+    if (isScalar)
+    {
+        double addScalar = mxGetScalar(denseMx);        
+        if (this->transposed)
+            resultMatrixMap = this->eigSpMatrix->transpose().toDense();
+        else
+            resultMatrixMap = this->eigSpMatrix->toDense();
+
+        resultMatrixMap.array() += (float) addScalar;
+    }
+    else if (sizeMatch)
+    {        
+        mxSingle* addMatrix_data = mxGetSingles(denseMx);
+        Eigen::Map<mxSingleAsMatrix_t> addMatrixMap(addMatrix_data,m,n);
+        
+        //According to the Eigen documentation, first coying the dense matrix and then using += sparse is faster
+        resultMatrixMap = addMatrixMap;
+
+        if (this->transposed)
+            resultMatrixMap += this->eigSpMatrix->transpose();
+        else
+            resultMatrixMap += *this->eigSpMatrix;
+    }
+
+    return resultMatrix;
+}
 //// Linear Algebra ////
 
 sparseSingle* sparseSingle::transpose() const {
