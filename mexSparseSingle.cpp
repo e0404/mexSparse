@@ -22,16 +22,19 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (nlhs != 1)
             mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:New","One output expected.");
         // Return a handle to a new C++ instance
-        if (nrhs == 1)
-            plhs[0] = convertPtr2Mat<sparseSingle>(new sparseSingle());
-        else if (nrhs == 2) {
-            if (!mxIsSparse(prhs[1]))
-            {
-                mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:New","single sparse matrix can only be constructed from double sparse matrix.");
-            }
+        if (nrhs > 1 && nrhs < 4)
+        {                
             try
             {
-                plhs[0] = convertPtr2Mat<sparseSingle>(new sparseSingle(prhs[1]));
+                if (nrhs == 1)
+                    plhs[0] = convertPtr2Mat<sparseSingle>(new sparseSingle());
+                else if (nrhs == 2)
+                    plhs[0] = convertPtr2Mat<sparseSingle>(new sparseSingle(prhs[1]));
+                else if (nrhs == 3)
+                    plhs[0] = convertPtr2Mat<sparseSingle>(new sparseSingle(prhs[1],prhs[2]));
+                else
+                    throw(MexException("sparseSingle:mexInterface:invalidMexCall:New","This sanity check should never be reached!"));
+
             }
             catch (const MexException& e)
             {

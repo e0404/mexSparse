@@ -49,9 +49,14 @@ public:
     /// @param eigSpMatrix_ 
     sparseSingle(std::shared_ptr<spMat_t> eigSpMatrix_);
 
-    /// @brief construct single sparse matrix from Matlab double sparse matrix
+    /// @brief construct single sparse matrix from a matrix (matlab double sparse matrix, single matrix, or double matrix)
     /// @param sparseDouble 
-    sparseSingle(const mxArray *sparseDouble);
+    sparseSingle(const mxArray *inputMatrix);
+
+    /// @brief construct empty sparse matrix with specific size
+    /// @param m number of rows 
+    /// @param n number of cols
+    sparseSingle(const mxArray *m, const mxArray *n);
 
     ~sparseSingle();
 
@@ -125,6 +130,7 @@ private:
     index_t linearIndexToColIndex(const index_t linIx) const;
 
     index_t linearIndexToRowIndex(const index_t linIx) const;
+
 
     template<typename T>
     bool isConsecutiveArray(const T * const array, const index_t n) const

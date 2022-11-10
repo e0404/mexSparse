@@ -17,47 +17,85 @@ sparseSingle::sparseSingle(std::shared_ptr<spMat_t> eigSpMatrix_)
         this->eigSpMatrix = eigSpMatrix_;        
     }
 
-sparseSingle::sparseSingle(const mxArray *sparseDouble) 
+sparseSingle::sparseSingle(const mxArray *inputMatrix) 
 {
-        if (!mxIsSparse(sparseDouble))
+        if (!inputMatrix)
         {
-            throw(MexException("sparseSingle:invalidInputType","First argument must be sparse."));                
-        }
-
-        mwIndex *ir, *jc; // ir: row indec, jc: encode row index and values in pr per coloumn
-        double *pr; //value pointer
-        
-        // Get the starting pointer of all three data arrays.
-        pr = mxGetPr(sparseDouble);     // row index array
-        ir = mxGetIr(sparseDouble);     // row index array
-        jc = mxGetJc(sparseDouble);     // column encrypt array
-        mwSize nCols = mxGetN(sparseDouble);       // number of columns
-        mwSize nRows = mxGetM(sparseDouble);       // number of rows
-
-        // nnz = mxGetNzmax(prhs[0]); // number of possible non zero elements
-        mwSize nnz = jc[nCols]; // number of non zero elements currently stored inside the sparse matrix
-        
-        //Create the Eigen Sparse Matrix        
-        try {        
-            //this->eigSpMatrix = std::shared_ptr<spMat_t>(new spMat_t(nRows,nCols));
-            this->eigSpMatrix = std::make_shared<spMat_t>(nRows,nCols);
-            this->eigSpMatrix->makeCompressed();
-            this->eigSpMatrix->reserve(nnz);
-            std::transform(std::execution::par_unseq, pr, pr+nnz, this->eigSpMatrix->valuePtr(), [](double d) -> float { return static_cast<float>(d);});    
-            std::transform(std::execution::par_unseq, ir, ir+nnz, this->eigSpMatrix->innerIndexPtr(), [](mwIndex i) -> index_t { return static_cast<index_t>(i);});
-            std::transform(std::execution::par_unseq, jc, jc+(nCols+1), this->eigSpMatrix->outerIndexPtr(), [](mwIndex i) -> index_t { return static_cast<index_t>(i);});
-        }
-        catch (const std::exception& e) {
-            std::string msg = std::string("Eigen Map could not be constructed from sparse matrix! Caught exception ") + e.what();      
-            throw(MexException("sparseSingle:errorOnConstruct",msg));
-        }
-        catch (...)
+            throw(MexException("sparseSingle:invalidInputType","Matrix to construct from invalid!"));         
+        }        
+        if (mxIsSparse(inputMatrix) && mxIsDouble(inputMatrix)) //I think there's also sparse logicals
         {
-            throw(MexException("sparseSingle:errorOnConstruct","Eigen Map could not be constructed from sparse matrix!"));
-        }
+            mwIndex *ir, *jc; // ir: row indec, jc: encode row index and values in pr per coloumn
+            double *pr; //value pointer
+            
+            // Get the starting pointer of all three data arrays.
+            pr = mxGetPr(inputMatrix);     // row index array
+            ir = mxGetIr(inputMatrix);     // row index array
+            jc = mxGetJc(inputMatrix);     // column encrypt array
+            mwSize nCols = mxGetN(inputMatrix);       // number of columns
+            mwSize nRows = mxGetM(inputMatrix);       // number of rows
 
-        // no need to free memory because matlab should handle memory management of return values
+            // nnz = mxGetNzmax(prhs[0]); // number of possible non zero elements
+            mwSize nnz = jc[nCols]; // number of non zero elements currently stored inside the sparse matrix
+            
+            //Create the Eigen Sparse Matrix        
+            try {        
+                //this->eigSpMatrix = std::shared_ptr<spMat_t>(new spMat_t(nRows,nCols));
+                this->eigSpMatrix = std::make_shared<spMat_t>(nRows,nCols);
+                this->eigSpMatrix->makeCompressed();
+                this->eigSpMatrix->reserve(nnz);
+                std::transform(std::execution::par_unseq, pr, pr+nnz, this->eigSpMatrix->valuePtr(), [](double d) -> float { return static_cast<float>(d);});    
+                std::transform(std::execution::par_unseq, ir, ir+nnz, this->eigSpMatrix->innerIndexPtr(), [](mwIndex i) -> index_t { return static_cast<index_t>(i);});
+                std::transform(std::execution::par_unseq, jc, jc+(nCols+1), this->eigSpMatrix->outerIndexPtr(), [](mwIndex i) -> index_t { return static_cast<index_t>(i);});
+            }
+            catch (const std::exception& e) {
+                std::string msg = std::string("Eigen Map could not be constructed from sparse matrix! Caught exception ") + e.what();      
+                throw(MexException("sparseSingle:errorOnConstruct",msg));
+            }
+            catch (...)
+            {
+                throw(MexException("sparseSingle:errorOnConstruct","Eigen Map could not be constructed from sparse matrix!"));
+            }
+                   
+        }
+        else if (mxIsSingle(inputMatrix)) // full matrix
+        {
+            mwSize nCols = mxGetN(inputMatrix);       // number of columns
+            mwSize nRows = mxGetM(inputMatrix);       // number of rows
+            float *singleData = mxGetSingles(inputMatrix);
+
+            Eigen::Map<mxSingleAsMatrix_t> singleDataMap(singleData,nRows,nCols);            
+            this->eigSpMatrix = std::make_shared<spMat_t>(singleDataMap.sparseView());
+            this->eigSpMatrix->makeCompressed(); // Not sure if necessary
+        }
+        else if (mxIsDouble(inputMatrix))
+        {
+            mwSize nCols = mxGetN(inputMatrix);       // number of columns
+            mwSize nRows = mxGetM(inputMatrix);       // number of rows
+            double *doubleData = mxGetDoubles(inputMatrix);
+
+            Eigen::Map<mxDoubleAsMatrix_t> singleDataMap(doubleData,nRows,nCols);            
+            this->eigSpMatrix = std::make_shared<spMat_t>(singleDataMap.cast<float>().sparseView());
+            this->eigSpMatrix->makeCompressed(); // Not sure if necessary
+        }
+        else
+        {
+            throw(MexException("sparseSingle:invalidInputType","Invalid Input Argument!"));      
+        }
     }
+
+sparseSingle::sparseSingle(const mxArray *m_, const mxArray *n_) 
+{
+    //Argument checks
+    if (!mxIsScalar(m_) || !mxIsScalar(n_))
+        throw(MexException("sparseSingle:invalidInputType","Row and Column Number must both be scalars!"));
+    
+    //Note that this implicitly casts to double and thus also allows other data types from matlab
+    index_t m = (index_t) mxGetScalar(m_); 
+    index_t n = (index_t) mxGetScalar(n_);
+
+    this->eigSpMatrix = std::make_shared<spMat_t>(m,n);
+}
 
  sparseSingle::~sparseSingle()
  {

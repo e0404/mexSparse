@@ -10,6 +10,8 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));
             testCase.fatalAssertEqual(nnz(test),nnz(tests));
             testCase.fatalAssertEqual(size(test),size(tests));
+
+            %Add tests for other constructors
         end
 
         function test_transpose(testCase)
