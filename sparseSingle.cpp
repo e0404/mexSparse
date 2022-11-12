@@ -66,7 +66,6 @@ sparseSingle::sparseSingle(const mxArray *inputMatrix)
 
             Eigen::Map<mxSingleAsMatrix_t> singleDataMap(singleData,nRows,nCols);            
             this->eigSpMatrix = std::make_shared<spMat_t>(singleDataMap.sparseView());
-            this->eigSpMatrix->makeCompressed(); // Not sure if necessary
         }
         else if (mxIsDouble(inputMatrix))
         {
@@ -76,12 +75,12 @@ sparseSingle::sparseSingle(const mxArray *inputMatrix)
 
             Eigen::Map<mxDoubleAsMatrix_t> singleDataMap(doubleData,nRows,nCols);            
             this->eigSpMatrix = std::make_shared<spMat_t>(singleDataMap.cast<float>().sparseView());
-            this->eigSpMatrix->makeCompressed(); // Not sure if necessary
         }
         else
         {
             throw(MexException("sparseSingle:invalidInputType","Invalid Input Argument!"));      
         }
+        this->eigSpMatrix->makeCompressed(); // Not sure if necessary
     }
 
 sparseSingle::sparseSingle(const mxArray *m_, const mxArray *n_) 
@@ -90,11 +89,136 @@ sparseSingle::sparseSingle(const mxArray *m_, const mxArray *n_)
     if (!mxIsScalar(m_) || !mxIsScalar(n_))
         throw(MexException("sparseSingle:invalidInputType","Row and Column Number must both be scalars!"));
     
+    if ((!mxIsNumeric(m_) && !mxIsChar(m_) ) || !mxIsNumeric(n_) && !mxIsChar(n_))
+        throw(MexException("sparseSingle:invalidInputType","Row and/or Column Number input is invalid!"));
+    
     //Note that this implicitly casts to double and thus also allows other data types from matlab
     index_t m = (index_t) mxGetScalar(m_); 
     index_t n = (index_t) mxGetScalar(n_);
 
     this->eigSpMatrix = std::make_shared<spMat_t>(m,n);
+}
+
+sparseSingle::sparseSingle(const mxArray* i_, const mxArray* j_, const mxArray* v_)
+{
+    //We only obtain the size here before calling the construction with given sizes
+    index_t maxI = 0;
+    index_t maxJ = 0;
+    UntypedMxDataAccessor<index_t> i(i_);
+    UntypedMxDataAccessor<index_t> j(j_);
+
+    #pragma omp parallel sections
+    {
+        #pragma omp section
+        {
+            
+            for (size_t n=0; n < i.size(); n++)
+                maxI = std::max<index_t>(maxI,i[n]);
+        }
+        
+        #pragma omp section
+        {
+            
+            for (size_t n=0; n < j.size(); n++)
+                maxJ = std::max<index_t>(maxJ,j[n]);
+        }
+    }
+
+    mxArray* m = mxCreateDoubleScalar((double) maxI);
+    mxArray* n = mxCreateDoubleScalar((double) maxJ);
+
+    this->constructFromMatlabTriplets(i_,j_,v_,m,n);
+
+    mxDestroyArray(m);
+    mxDestroyArray(n);
+}
+
+sparseSingle::sparseSingle(const mxArray* i, const mxArray* j, const mxArray* v, const mxArray* m, const mxArray* n, const mxArray* nz)
+{
+    this->constructFromMatlabTriplets(i,j,v,m,n,nz);
+}
+
+void sparseSingle::constructFromMatlabTriplets(const mxArray* i_, const mxArray* j_, const mxArray* v_, const mxArray* m_, const mxArray* n_, const mxArray* nz_)
+{
+    //We fill triplets manually because Eigen would expect them as a Triplet construct, but we have independent mxArrays and would need to copy everything together
+
+    UntypedMxDataAccessor<index_t> i(i_);
+    UntypedMxDataAccessor<index_t> j(j_);
+
+    //For now we mimic the SparseDouble behavior of only allowing values of similar type (here singles). We could cast, if we want to, as well  
+    if (v_ == nullptr || !mxIsSingle(v_))
+        throw(MexException("sparseSingle:invalidInputType","Values must be of data type single"));
+
+    mwSize numValues = mxGetNumberOfElements(v_); //We can even have matrices as input, so we only care for the number of elements
+    float* v = mxGetSingles(v_);    
+
+    if ((i.size() != j.size()) || j.size() != numValues)
+        throw(MexException("sparseSingle:invalidInputType","Different number of elements in input triplet vectors!"));
+    
+    std::vector<index_t> sortPattern(numValues);
+    #pragma omp parallel for schedule(static)
+    for (index_t r = 0; r < numValues; r++)
+        sortPattern[r] = r;
+
+    if (!mxIsScalar(m_) || !mxIsScalar(n_) || !mxIsNumeric(m_) || !mxIsNumeric(n_))
+        throw(MexException("sparseSingle:invalidInputType","Row and Column numbers must be numeric scalars!"));
+
+    index_t m = mxGetScalar(m_);
+    index_t n = mxGetScalar(n_);
+
+    if (m < 0 || n < 0)
+        throw(MexException("sparseSingle:invalidInputType","Row and Column numbers must be greater or equal to zero!"));
+
+    index_t nnz_reserve = numValues;
+    if (nz_ != nullptr)
+    {
+        if(!mxIsScalar(nz_) || !mxIsNumeric(nz_))
+            throw(MexException("sparseSingle:invalidInputType","Invalid number of nonzeros to reserve"));
+        
+        nnz_reserve = (index_t) mxGetScalar(nz_);
+
+        //Should we throw an error here or just silently adapt?
+        if (nnz_reserve < numValues)
+            nnz_reserve = numValues;
+    }        
+
+    if (m < 0 || n < 0)
+        throw(MexException("sparseSingle:invalidInputType","Row and Column numbers must be greater or equal to zero!"));
+
+    //Now we obtain the sort pattern of the triplets
+    //The data accessor is not yet in index base 0!!
+    //We could use a linear index comparison or we define a double comparison
+    //We sort by linear index
+    std::stable_sort(std::execution::par,sortPattern.begin(),sortPattern.end(),
+        [&i,&j,&m](index_t i1, index_t i2) {
+            return ((j[i1]-1)*m + i[i1] - 1) < ((j[i2]-1)*m + i[i2] - 1);
+        });
+    
+    this->eigSpMatrix = std::make_shared<spMat_t>(m,n);
+    this->eigSpMatrix->reserve(nnz_reserve);
+    this->eigSpMatrix->outerIndexPtr()[0] = 0;
+
+    //Can this be parallelized if the indices are sorted as in our case?
+    //#pragma omp parallel for schedule(static)
+    for (index_t r = 0; r < numValues; r++)
+    {
+        //This is the index to be written
+        index_t getIx = sortPattern[r];
+
+        //Convert to base 0
+        index_t row = i[getIx] - 1;
+        index_t col = j[getIx] - 1;
+        float value = v[getIx];
+
+        //mexPrintf("Inserting triplet %d at (%d,%d) with value %f;.\n",r,row,col,value);
+
+        this->eigSpMatrix->innerIndexPtr()[r] = row;
+        this->eigSpMatrix->valuePtr()[r] = value;
+        this->eigSpMatrix->outerIndexPtr()[col+1]++;
+    }
+    std::partial_sum(this->eigSpMatrix->outerIndexPtr(),this->eigSpMatrix->outerIndexPtr()+n+1,this->eigSpMatrix->outerIndexPtr());
+
+    this->eigSpMatrix->makeCompressed();
 }
 
  sparseSingle::~sparseSingle()
@@ -533,7 +657,6 @@ sparseSingle* sparseSingle::linearIndexing(const mxArray* indexList) const
 
 }
 
-
 sparseSingle::index_t sparseSingle::toLinearIndex(const sparseSingle::index_t row, const sparseSingle::index_t col) const
 {
     return this->getRows()*col + row;
@@ -637,7 +760,7 @@ mxArray* sparseSingle::timesVec(const mxArray* vals_) const
     //Create a Map to the Eigen vector
     Eigen::Map<const Eigen::VectorXf> vecMap(vals,n);
     //Create the result array and map eigen vector around it - when transposed, the getRows is already considering this
-    mxArray* result = mxCreateNumericMatrix(this->getRows(),1,mxSINGLE_CLASS,mxREAL);
+    mxArray* result = mxCreateUninitNumericMatrix(this->getRows(),1,mxSINGLE_CLASS,mxREAL);
     mxSingle* result_data = mxGetSingles(result);
     Eigen::Map<Eigen::VectorXf> resultMap(result_data,this->getRows());
     
@@ -645,7 +768,67 @@ mxArray* sparseSingle::timesVec(const mxArray* vals_) const
     if (this->transposed)
         resultMap = this->eigSpMatrix->transpose()*vecMap;
     else
-        resultMap = (*this->eigSpMatrix)*vecMap;
+    {
+        switch (this->cscParallelize)
+        {
+            case DEFAULT:
+                resultMap = (*this->eigSpMatrix)*vecMap;
+                break;
+
+            case WITHIN_COLUMN:
+                if (!(this-eigSpMatrix->isCompressed()))
+                    throw(MexException("sparseSingle:timesVec:notCompressed","Sparse Matrix is not compressed! This should not happen..."));
+                
+                std::fill(std::execution::par_unseq,result_data,result_data + this->getRows(),0);
+
+                for (index_t j = 0; j < this->eigSpMatrix->outerSize(); ++j)
+                {                    
+                    index_t start = this->eigSpMatrix->outerIndexPtr()[j];
+                    index_t end   = this->eigSpMatrix->outerIndexPtr()[j+1];
+                    index_t colNnz = end - start;
+
+                    #pragma omp parallel for schedule(static)
+                    for (index_t nzIx = start; nzIx < end; nzIx++)
+                    {
+                        index_t i = this->eigSpMatrix->innerIndexPtr()[nzIx];
+                        float v = this->eigSpMatrix->valuePtr()[nzIx];
+
+                        result_data[i] += v*vals[j];
+                    }
+                }
+                break;   
+
+            case ACROSS_COLUMN:
+                if (!(this-eigSpMatrix->isCompressed()))
+                    throw(MexException("sparseSingle:timesVec:notCompressed","Sparse Matrix is not compressed! This should not happen..."));
+
+                std::fill(std::execution::par_unseq,result_data,result_data + this->getRows(),0);
+
+                #pragma omp parallel for schedule(dynamic)
+                for (index_t j = 0; j < this->eigSpMatrix->outerSize(); ++j)
+                {                    
+                    index_t start = this->eigSpMatrix->outerIndexPtr()[j];
+                    index_t end   = this->eigSpMatrix->outerIndexPtr()[j+1];
+                    index_t colNnz = end - start;
+
+                    for (index_t nzIx = start; nzIx < end; nzIx++)
+                    {
+                        index_t i = this->eigSpMatrix->innerIndexPtr()[nzIx];
+                        float v = this->eigSpMatrix->valuePtr()[nzIx];
+
+                        float prod = v*vals[j];
+
+                        #pragma omp atomic
+                        result_data[i] += prod;
+                    }
+                }
+                break;  
+
+            default:
+                throw(MexException("sparseSingle:timesVec:invalidAlgrithm","Selected parallelization algorithm not known!"));
+        }
+        
+    }
     
     //return the bare array
     return result;

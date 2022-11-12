@@ -1,7 +1,7 @@
 classdef SparseSingleTest < matlab.unittest.TestCase
 
     methods (Test)
-        function test_constructBasics(testCase)
+        function test_constructFromSparseDouble(testCase)
             test = sparse(eye(2));
             tests = SparseSingle(test);
             testCase.fatalAssertClass(tests,'SparseSingle');
@@ -10,8 +10,62 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));
             testCase.fatalAssertEqual(nnz(test),nnz(tests));
             testCase.fatalAssertEqual(size(test),size(tests));
+        end
 
+        function test_constructFromDense(testCase)
             %Add tests for other constructors
+            tests = SparseSingle(eye(5));
+            testCase.fatalAssertTrue(issparse(tests));
+            testCase.fatalAssertSize(tests,[5 5]);
+            testCase.fatalAssertEqual(nnz(tests),5);
+            testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));
+
+            tests = SparseSingle(single(eye(5)));
+            testCase.fatalAssertTrue(issparse(tests));
+            testCase.fatalAssertSize(tests,[5 5]);
+            testCase.fatalAssertEqual(nnz(tests),5);
+            testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));
+
+            testCase.verifyError(@() SparseSingle("hello"),'sparseSingle:invalidInputType');
+        end
+
+        function test_constructFromSize(testCase)
+
+            tests = SparseSingle(3,4);
+            testCase.fatalAssertTrue(issparse(tests));
+            testCase.fatalAssertSize(tests,[3 4]);
+            testCase.fatalAssertEqual(nnz(tests),0);
+            testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));            
+
+            %Invalid Inputs
+            testCase.verifyError(@() SparseSingle([3 2],4),'sparseSingle:invalidInputType');
+            testCase.verifyError(@() SparseSingle([3 2],[2 3]),'sparseSingle:invalidInputType');
+            testCase.verifyError(@() SparseSingle(3,[2 3]),'sparseSingle:invalidInputType');
+            testCase.verifyError(@() SparseSingle("hello",1),'sparseSingle:invalidInputType');
+            testCase.verifyError(@() SparseSingle(1,"hello"),'sparseSingle:invalidInputType');
+            
+            %You can also construct sparse doubles from rows/columns given as char, uint, etc. in Matlab. Should we test that?
+        end
+
+        function test_constructFromTriplets(testCase)
+            i = 1:4; j = 2:5; v = rand(4,1,'single');
+            tests = SparseSingle(i,j,v);
+            testCase.fatalAssertTrue(issparse(tests));
+            testCase.fatalAssertSize(tests,[4 5]);
+            testCase.fatalAssertEqual(nnz(tests),4);
+            testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));   
+
+            tests = SparseSingle(i,j,v,10,20);
+            testCase.fatalAssertTrue(issparse(tests));
+            testCase.fatalAssertSize(tests,[10 20]);
+            testCase.fatalAssertEqual(nnz(tests),4);
+            testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));  
+
+            %Invalid Inputs
+            testCase.verifyError(@() SparseSingle([3 2],4,ones(1,2,'single')),'sparseSingle:invalidInputType');
+            testCase.verifyError(@() SparseSingle([3 2],[2 3],ones(1,2,'double')),'sparseSingle:invalidInputType');
+            testCase.verifyError(@() SparseSingle([3 2],"test",ones(1,2,'single')),'sparseSingle:invalidDataPointer');
+            
         end
 
         function test_transpose(testCase)
