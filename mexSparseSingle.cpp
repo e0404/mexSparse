@@ -269,6 +269,25 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
     }
     
 
+    if (cmd == "find")
+    {
+        if (nlhs < 0 || nlhs > 1 || nrhs != 2)
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:find","Unexpected Number of arguments!");
+
+        try {
+            plhs[0]  = sparseSingle_instance->find();            
+        }
+        catch (const MexException& e)
+        {
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
+        catch(...)
+        {
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:find","Nonzero lookup failed for unknown reason!");
+        }
+        return;
+    }
+    
 
     // Delete
     if (cmd == "delete") {

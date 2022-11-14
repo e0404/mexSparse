@@ -77,6 +77,14 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.fatalAssertEqual(size(testt),size(testst));            
         end
 
+        function test_find(testCase)
+            test = sprand(5,10,0.25);
+            tests = SparseSingle(test);
+            
+            testCase.verifyEqual(find(test),find(tests));
+            testCase.verifyEqual(find(test'),find(tests'));
+        end
+            
         function test_full(testCase)
             test = sprand(5,10,0.25);
             tests = SparseSingle(test);

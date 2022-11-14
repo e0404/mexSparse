@@ -421,6 +421,46 @@ sparseSingle* sparseSingle::allValues() const
     return indexedMatrix;
 }
 
+mxArray* sparseSingle::find() const 
+{
+    mxArray* findLin = mxCreateDoubleMatrix(this->getNnz(),1,mxREAL);
+    double* findLinData = mxGetDoubles(findLin);
+
+    index_t count = 0;
+    if (this->transposed)  
+    {
+        Eigen::Map<spMatTransposed_t> crs_transposed(this->getRows(),this->getCols(),this->getNnz(),this->eigSpMatrix->outerIndexPtr(),this->eigSpMatrix->innerIndexPtr(),this->eigSpMatrix->valuePtr());
+
+        for (index_t k = 0; k < crs_transposed.outerSize(); ++k)
+            for (Eigen::Map<spMatTransposed_t>::InnerIterator it(crs_transposed,k); it; ++it)
+            {
+                index_t currLinIx = this->toLinearIndex(it.row(),it.col());
+                findLinData[count] = double(currLinIx) + 1;
+                count++;
+            }
+
+        if (count != this->getNnz())
+            throw(MexException("sparseSingle:find:invalidDataStructure","For some reason, we found more or less nonzeros than expected!"));
+
+        std::sort(std::execution::par_unseq,findLinData,findLinData + count);
+    }   
+    else
+    {
+        for (index_t k = 0; k < this->eigSpMatrix->outerSize(); ++k)
+            for (spMat_t::InnerIterator it(*this->eigSpMatrix,k); it; ++it)
+            {
+                index_t currLinIx = this->toLinearIndex(it.row(),it.col());
+                findLinData[count] = double(currLinIx) + 1;
+                count++;
+            }
+        
+        if (count != this->getNnz())
+            throw(MexException("sparseSingle:find:invalidDataStructure","For some reason, we found more or less nonzeros than expected!"));
+    }
+
+    return findLin;
+}
+
 void sparseSingle::disp() const 
 {
     if (this->getNnz() == 0)

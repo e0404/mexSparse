@@ -149,6 +149,10 @@ public:
     /// @todo Maybe we could also make a version that shares the data memory when read-only
     sparseSingle* allValues() const;
 
+    /// @brief return all nonzero values
+    /// @return Pointer to column array of linear indices
+    mxArray* find() const;
+
     /// @brief display like Matlab's disp() function
     void disp() const;   
 

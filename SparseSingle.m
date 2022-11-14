@@ -35,7 +35,7 @@ classdef SparseSingle
         function sz = size(this)
             sz = mexSparseSingle('size',this.objectHandle);
         end
-        
+
         %% Plus & Minus
         function ret = plus(A,B)
             %error('sparseSingle:missingImplementation','plus operator not yet implemented!');
@@ -58,6 +58,10 @@ classdef SparseSingle
 
         function ret = uminus(this)            
             error('sparseSingle:missingImplementation','negation not yet implemented!');
+        end
+
+        function ret = find(this)            
+            ret = mexSparseSingle('find',this.objectHandle);
         end
         
         %% sparsity oprations
