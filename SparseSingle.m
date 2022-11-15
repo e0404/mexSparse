@@ -36,6 +36,10 @@ classdef SparseSingle
             sz = mexSparseSingle('size',this.objectHandle);
         end
 
+        function ret = horzcat(varargin)
+            error('sparseSingle:missingImplementation','horzcat not yet implemented!');
+        end
+        
         %% Plus & Minus
         function ret = plus(A,B)
             %error('sparseSingle:missingImplementation','plus operator not yet implemented!');

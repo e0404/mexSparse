@@ -65,7 +65,17 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.verifyError(@() SparseSingle([3 2],4,ones(1,2,'single')),'sparseSingle:invalidInputType');
             testCase.verifyError(@() SparseSingle([3 2],[2 3],ones(1,2,'double')),'sparseSingle:invalidInputType');
             testCase.verifyError(@() SparseSingle([3 2],"test",ones(1,2,'single')),'sparseSingle:invalidDataPointer');
+        end
+
+        function test_horzcat(testCase)
+            test = sprand(50,50,0.05);
+            tests = SparseSingle(test);
+
+            test = [test test];
+            tests = [tests tests];
             
+            testCase.verifySize(tests,size(test));
+            testCase.verifyEqual(nnz(test),nnz(tests));
         end
 
         function test_transpose(testCase)
