@@ -4,6 +4,7 @@
 #include <execution>
 #include <chrono>
 #include <array>
+#include "class_handle.hpp"
 
 //// Construct & Delete ////
 

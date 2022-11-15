@@ -3,31 +3,7 @@
 #include "mex.h"
 #include <Eigen/Core>
 #include <Eigen/Sparse>
-#include <exception>
-#include <string>
-
-class MexException : public std::exception
-{
-    public:       
-        explicit MexException(const std::string& matlabErrID, const std::string& matlabErrMessage)
-            : errID(matlabErrID), errMessage(matlabErrMessage) {}
-
-        virtual ~MexException() noexcept {}
-
-        virtual const char* what() const override
-        {                        
-            return this->errMessage.c_str();
-        }
-
-        virtual const char* id() const noexcept
-        {
-            return this->errID.c_str();
-        }
-
-    protected:
-        std::string errID;
-        std::string errMessage;
-}; 
+#include "class_handle.hpp"
 
 class sparseSingle
 {

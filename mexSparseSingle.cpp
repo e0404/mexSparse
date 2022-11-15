@@ -1,5 +1,5 @@
 #include "mex.h"
-#include "C___class_interface/class_handle.hpp"
+#include "class_handle.hpp"
 #include "sparseSingle.hpp"
 
 #include <stdexcept>
