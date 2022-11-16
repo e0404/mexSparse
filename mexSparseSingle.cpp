@@ -133,12 +133,12 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         return;
     }
 
-    if (cmd == "addDense")
+    if (cmd == "plus")
     {
         if (nlhs < 0 || nlhs > 1 || nrhs != 3)
-            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:addDense","Unexpected Number of arguments!");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:add","Unexpected Number of arguments!");
         try {           
-            mxArray* result = sparseSingle_instance->addDense(prhs[2]);
+            mxArray* result = sparseSingle_instance->plus(prhs[2]);
             plhs[0] = result;
         }
         catch (const MexException& e)
@@ -147,7 +147,140 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         }
         catch(...)
         {
-            mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:addDense","Addition failed for unknown reason!");
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:add","Addition failed for unknown reason!");
+        }
+        return;
+    }
+
+    if (cmd == "minusAsMinuend")
+    {
+        if (nlhs < 0 || nlhs > 1 || nrhs != 3)
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:minusAsMinuend","Unexpected Number of arguments!");
+        try {           
+            mxArray* result = sparseSingle_instance->minusAsMinuend(prhs[2]);
+            plhs[0] = result;
+        }
+        catch (const MexException& e)
+        {
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
+        catch(...)
+        {
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:minusAsMinuend","Subtraction failed for unknown reason!");
+        }
+        return;
+    }
+
+    if (cmd == "minusAsSubtrahend")
+    {
+        if (nlhs < 0 || nlhs > 1 || nrhs != 3)
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:minusAsSubtrahend","Unexpected Number of arguments!");
+        try {           
+            mxArray* result = sparseSingle_instance->minusAsSubtrahend(prhs[2]);
+            plhs[0] = result;
+        }
+        catch (const MexException& e)
+        {
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
+        catch(...)
+        {
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:minusAsSubtrahend","Subtraction failed for unknown reason!");
+        }
+        return;
+    }
+
+    if (cmd == "rdivide")
+    {
+        if (nlhs < 0 || nlhs > 1 || nrhs != 3)
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:rdivide","Unexpected Number of arguments!");
+        try {           
+            mxArray* result = sparseSingle_instance->rdivide(prhs[2]);
+            plhs[0] = result;
+        }
+        catch (const MexException& e)
+        {
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
+        catch(...)
+        {
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:rdivide","Division failed for unknown reason!");
+        }
+        return;
+    }
+
+    if (cmd == "ldivide")
+    {
+        if (nlhs < 0 || nlhs > 1 || nrhs != 3)
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:ldivide","Unexpected Number of arguments!");
+        try {           
+            mxArray* result = sparseSingle_instance->ldivide(prhs[2]);
+            plhs[0] = result;
+        }
+        catch (const MexException& e)
+        {
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
+        catch(...)
+        {
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:ldivide","Division failed for unknown reason!");
+        }
+        return;
+    }
+
+    if (cmd == "times")
+    {
+        if (nlhs < 0 || nlhs > 1 || nrhs != 3)
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:times","Unexpected Number of arguments!");
+        try {           
+            mxArray* result = sparseSingle_instance->times(prhs[2]);
+            plhs[0] = result;
+        }
+        catch (const MexException& e)
+        {
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
+        catch(...)
+        {
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:times","Multiplication failed for unknown reason!");
+        }
+        return;
+    }
+
+    if (cmd == "mtimesr")
+    {
+        if (nlhs < 0 || nlhs > 1 || nrhs != 3)
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:mtimesr","Unexpected Number of arguments!");
+        try {           
+            mxArray* result = sparseSingle_instance->mtimesr(prhs[2]);
+            plhs[0] = result;
+        }
+        catch (const MexException& e)
+        {
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
+        catch(...)
+        {
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:mtimesl","Multiplication failed for unknown reason!");
+        }
+        return;
+    }
+
+    if (cmd == "mtimesl")
+    {
+        if (nlhs < 0 || nlhs > 1 || nrhs != 3)
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:mtimesl","Unexpected Number of arguments!");
+        try {           
+            mxArray* result = sparseSingle_instance->mtimesl(prhs[2]);
+            plhs[0] = result;
+        }
+        catch (const MexException& e)
+        {
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
+        catch(...)
+        {
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:mtimesl","Multiplication failed for unknown reason!");
         }
         return;
     }
@@ -203,6 +336,24 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         catch(...)
         {
             mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:timesScalar","Product with Scalar failed for unknown reason!");
+        }
+        return;
+    }
+
+    if (cmd == "uminus")
+    {
+        if (nlhs < 0 || nlhs > 1 || nrhs > 2)
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:uminus","Unexpected Number of arguments!");
+        try {
+            plhs[0] = sparseSingle_instance->uminus();
+        }
+        catch (const MexException& e)
+        {
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
+        catch(...)
+        {
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:uminus","Negation failed for unknown reason!");
         }
         return;
     }

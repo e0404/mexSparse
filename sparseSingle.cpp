@@ -13,6 +13,18 @@ sparseSingle::sparseSingle()
     this->eigSpMatrix = std::make_shared<spMat_t>();
 }
 
+sparseSingle::sparseSingle(const sparseSingle& copy) :
+    eigSpMatrix(std::make_shared<spMat_t>(*copy.eigSpMatrix)), 
+    transposed(copy.transposed)
+{}
+
+
+sparseSingle::sparseSingle(sparseSingle& copy)
+{
+    this->eigSpMatrix = copy.eigSpMatrix;
+    this->transposed = copy.transposed;
+}
+
 sparseSingle::sparseSingle(std::shared_ptr<spMat_t> eigSpMatrix_) 
 {
         this->eigSpMatrix = eigSpMatrix_;        
@@ -197,6 +209,8 @@ void sparseSingle::constructFromMatlabTriplets(const mxArray* i_, const mxArray*
     
     this->eigSpMatrix = std::make_shared<spMat_t>(m,n);
     this->eigSpMatrix->reserve(nnz_reserve);
+    
+    //We could also use insertBack here from the low-level Eigen API but since we have our weird ordering, I'll do it manually for now.
     this->eigSpMatrix->outerIndexPtr()[0] = 0;
 
     //Can this be parallelized if the indices are sorted as in our case?
@@ -218,6 +232,8 @@ void sparseSingle::constructFromMatlabTriplets(const mxArray* i_, const mxArray*
         this->eigSpMatrix->outerIndexPtr()[col+1]++;
     }
     std::partial_sum(this->eigSpMatrix->outerIndexPtr(),this->eigSpMatrix->outerIndexPtr()+n+1,this->eigSpMatrix->outerIndexPtr());
+    
+
 
     this->eigSpMatrix->makeCompressed();
 }
@@ -366,6 +382,11 @@ sparseSingle* sparseSingle::rowColIndexing(const mxArray * const rowIndex, const
     }
 
     return indexedSubMatrix; 
+}
+
+sparseSingle* sparseSingle::rowColAssignment(const mxArray * const rowIndex, const mxArray * const colIndex, const mxArray* assignedValues)
+{
+    throw(MexException("sparseSingle::implementationMissing","Subscripted assignment has not been implemented yet!"));
 }
 
 sparseSingle* sparseSingle::allValues() const 
@@ -728,54 +749,590 @@ mxArray* sparseSingle::full() const
     return fullMatrix;
 }
 
-mxArray* sparseSingle::addDense(const mxArray* denseMx) const
-{
-    mxClassID mxType = mxGetClassID(denseMx);
-    mwSize m = mxGetM(denseMx);
-    mwSize n = mxGetN(denseMx);
+mxArray* sparseSingle::elementWiseBinaryOperation(const mxArray* operand, const ElementWiseOperation& op) const
+{    
+    mxClassID mxType = mxGetClassID(operand);
+    //Check if it is a sparse single
+
+    mwSize m = mxGetM(operand);
+    mwSize n = mxGetN(operand);
     
     bool isScalar = (m == 1) & (n == 1);
-    if (mxType != mxSINGLE_CLASS && !isScalar)
-    {
-        throw(MexException("sparseSingle:wrongDataType","Matrix addition only implemented for single/double!"));
-    }
+
     
-    bool sizeMatch = (m == this->getRows()) & (n == this->getCols());
-    
-    if (!isScalar && !sizeMatch)
-        throw(MexException("sparseSingle:wrongOperandSize","Matrix addition only implemented for scalars and same shape! Implicit expansion not yet supported!"));
 
-    mxArray* resultMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),mxSINGLE_CLASS,mxREAL);
-    mxSingle* resultMatrix_data = mxGetSingles(resultMatrix);
-    Eigen::Map<mxSingleAsMatrix_t> resultMatrixMap(resultMatrix_data,this->getRows(),this->getCols());
-
-    if (isScalar)
+    std::string opName = "Matrix ";
+    switch (op)
     {
-        double addScalar = mxGetScalar(denseMx);        
-        if (this->transposed)
-            resultMatrixMap = this->eigSpMatrix->transpose().toDense();
-        else
-            resultMatrixMap = this->eigSpMatrix->toDense();
-
-        resultMatrixMap.array() += (float) addScalar;
+        case ELEMENTWISE_PLUS:
+            opName += "addition";
+            break;
+        case ELEMENTWISE_MINUS_L:
+        case ELEMENTWISE_MINUS_R:
+            opName += "subtraction";
+            break;
+        case ELEMENTWISE_DIVIDE_L:
+        case ELEMENTWISE_DIVIDE_R:
+            opName += "elementwise division";
+            break;
+        case ELEMENTWISE_TIMES:
+            opName += "hadamard product";
+            break;
+        default:
+            throw(MexException("sparseSingle:unkownOperation","Binary elementwise matrix operation not known!"));        
     }
-    else if (sizeMatch)
-    {        
-        mxSingle* addMatrix_data = mxGetSingles(denseMx);
-        Eigen::Map<mxSingleAsMatrix_t> addMatrixMap(addMatrix_data,m,n);
+
+            
+
+    mxArray* resultMatrix;    
+
+    if (mxType == mxUINT64_CLASS && isScalar)
+    {
+        //This might be a sparseSingle matrix
         
-        //According to the Eigen documentation, first coying the dense matrix and then using += sparse is faster
-        resultMatrixMap = addMatrixMap;
+        sparseSingle* operandSpS = nullptr;
 
-        if (this->transposed)
-            resultMatrixMap += this->eigSpMatrix->transpose();
+        try 
+        {
+            operandSpS = convertMat2Ptr<sparseSingle>(operand);
+        }
+        catch (MexException& e)
+        {
+            std::string id(e.id());
+            if (id.compare("classHandle:invalidHandle")) //Later we could allow uint64 operations as well, but I advise against this
+                throw(MexException("sparseSingle:wrongDataType",opName + " only implemented for single/double!"));
+            else            
+                throw;
+        }
+        catch (...)
+        {
+            throw;
+        }
+
+        m = operandSpS->getRows();
+        n = operandSpS->getCols();
+
+        bool sizeMatch = (m == this->getRows()) & (n == this->getCols());  
+
+        isScalar = (m == n) & (n == 1);       
+
+        if (isScalar)
+        {
+            throw(MexException("sparseSingle:missingImplementation",opName + " not implemented for scalar sparse matrix!"));
+        }
+        else if (sizeMatch)
+        {            
+            std::shared_ptr<spMat_t> resultSparse = std::make_shared<spMat_t>(m,n);
+            switch (op)
+            {
+                case ELEMENTWISE_PLUS:
+                    if (!this->transposed && !operandSpS->transposed)
+                        *resultSparse = (*this->eigSpMatrix + *operandSpS->eigSpMatrix).pruned();
+                    else if (this->transposed && operandSpS->transposed)
+                        *resultSparse = (this->eigSpMatrix->transpose() + operandSpS->eigSpMatrix->transpose()).pruned();
+                    else if (this->transposed && !operandSpS->transposed)
+                        *resultSparse = (spMat_t(this->eigSpMatrix->transpose()) + *operandSpS->eigSpMatrix).pruned();
+                    else if (!this->transposed && operandSpS->transposed)
+                        *resultSparse = (*this->eigSpMatrix + spMat_t(operandSpS->eigSpMatrix->transpose())).pruned();
+                    else
+                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                    break;                    
+                
+                case ELEMENTWISE_MINUS_R:
+                    if (!this->transposed && !operandSpS->transposed)
+                        *resultSparse = (*this->eigSpMatrix - *operandSpS->eigSpMatrix).pruned();
+                    else if (this->transposed && operandSpS->transposed)
+                        *resultSparse = (this->eigSpMatrix->transpose() - operandSpS->eigSpMatrix->transpose()).pruned();
+                    else if (this->transposed && !operandSpS->transposed)
+                        *resultSparse = (spMat_t(this->eigSpMatrix->transpose()) - *operandSpS->eigSpMatrix).pruned();
+                    else if (!this->transposed && operandSpS->transposed)
+                        *resultSparse = (*this->eigSpMatrix - spMat_t(operandSpS->eigSpMatrix->transpose())).pruned();
+                    else
+                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                    break;
+                
+                case ELEMENTWISE_MINUS_L:
+                    if (!this->transposed && !operandSpS->transposed)
+                        *resultSparse = (*operandSpS->eigSpMatrix - *this->eigSpMatrix).pruned();
+                    else if (this->transposed && operandSpS->transposed)
+                        *resultSparse = (operandSpS->eigSpMatrix->transpose() - this->eigSpMatrix->transpose()).pruned();
+                    else if (this->transposed && !operandSpS->transposed)
+                        *resultSparse = (*operandSpS->eigSpMatrix - spMat_t(this->eigSpMatrix->transpose())).pruned();
+                    else if (!this->transposed && operandSpS->transposed)
+                        *resultSparse = (spMat_t(operandSpS->eigSpMatrix->transpose()) - *this->eigSpMatrix).pruned();
+                    else
+                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                    break;
+                
+                case ELEMENTWISE_DIVIDE_L:
+                    if (!this->transposed && !operandSpS->transposed)
+                        *resultSparse = operandSpS->eigSpMatrix->cwiseQuotient(*this->eigSpMatrix);
+                    else if (this->transposed && operandSpS->transposed)
+                        *resultSparse = operandSpS->eigSpMatrix->transpose().cwiseQuotient(this->eigSpMatrix->transpose());
+                    else if (this->transposed && !operandSpS->transposed)
+                        *resultSparse = operandSpS->eigSpMatrix->cwiseQuotient(spMat_t(this->eigSpMatrix->transpose()));
+                    else if (!this->transposed && operandSpS->transposed)
+                        *resultSparse = spMat_t(operandSpS->eigSpMatrix->transpose()).cwiseQuotient(*this->eigSpMatrix);
+                    else
+                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                    break;
+                
+                case ELEMENTWISE_DIVIDE_R:
+                    if (!this->transposed && !operandSpS->transposed)
+                        *resultSparse = this->eigSpMatrix->cwiseQuotient(*operandSpS->eigSpMatrix);
+                    else if (this->transposed && operandSpS->transposed)
+                        *resultSparse = this->eigSpMatrix->transpose().cwiseQuotient(this->eigSpMatrix->transpose());
+                    else if (this->transposed && !operandSpS->transposed)
+                        *resultSparse = spMat_t(this->eigSpMatrix->transpose()).cwiseQuotient(*this->eigSpMatrix);
+                    else if (!this->transposed && operandSpS->transposed)
+                        *resultSparse = this->eigSpMatrix->cwiseQuotient(spMat_t(operandSpS->eigSpMatrix->transpose()));
+                    else
+                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                    break;
+                
+                case ELEMENTWISE_TIMES:
+                    if (!this->transposed && !operandSpS->transposed)
+                        *resultSparse = this->eigSpMatrix->cwiseProduct(*operandSpS->eigSpMatrix).pruned();
+                    else if (this->transposed && operandSpS->transposed)
+                        *resultSparse = this->eigSpMatrix->transpose().cwiseProduct(this->eigSpMatrix->transpose()).pruned();
+                    else if (this->transposed && !operandSpS->transposed)
+                        *resultSparse = spMat_t(this->eigSpMatrix->transpose()).cwiseProduct(*this->eigSpMatrix).pruned();
+                    else if (!this->transposed && operandSpS->transposed)
+                        *resultSparse = this->eigSpMatrix->cwiseProduct(spMat_t(operandSpS->eigSpMatrix->transpose())).pruned();
+                    else
+                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                    break;
+                
+                default:
+                    throw(MexException("sparseSingle:unkownOperation","Binary elementwise matrix operation not known!"));  
+            }
+            sparseSingle* resultSparseSingle = new sparseSingle(resultSparse); 
+
+            resultMatrix = convertPtr2Mat<sparseSingle>(resultSparseSingle);
+        }
         else
-            resultMatrixMap += *this->eigSpMatrix;
+            throw(MexException("sparseSingle:wrongOperandSize",opName + "only implemented for same shape! Implicit expansion not yet supported!"));
+    }  
+    else{
+        bool sizeMatch = (m == this->getRows()) & (n == this->getCols()); 
+    
+
+        if (mxType != mxSINGLE_CLASS && !isScalar)
+            throw(MexException("sparseSingle:wrongDataType",opName + " only implemented for single/double!"));      
+        
+        if (!isScalar && !sizeMatch)
+            throw(MexException("sparseSingle:wrongOperandSize",opName + "only implemented for scalars and same shape! Implicit expansion not yet supported!"));
+
+
+
+        if (isScalar)
+        {
+            float scalar = (float) mxGetScalar(operand);
+
+            //These cases return dense matrices
+            if (op == ELEMENTWISE_PLUS || op == ELEMENTWISE_MINUS_L || op == ELEMENTWISE_MINUS_R)
+            {
+                resultMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),mxSINGLE_CLASS,mxREAL);
+                mxSingle* resultMatrix_data = mxGetSingles(resultMatrix);
+                Eigen::Map<mxSingleAsMatrix_t> resultMatrixMap(resultMatrix_data,this->getRows(),this->getCols());
+                if (this->transposed)
+                    resultMatrixMap = this->eigSpMatrix->transpose().toDense();
+                else
+                    resultMatrixMap = this->eigSpMatrix->toDense();
+
+                switch (op)
+                {   
+                    case ELEMENTWISE_PLUS:
+                        resultMatrixMap.array() += scalar;
+                        break;
+                    case ELEMENTWISE_MINUS_L:
+                        resultMatrixMap.array() = scalar - resultMatrixMap.array();
+                        break;
+                    case ELEMENTWISE_MINUS_R:
+                        resultMatrixMap.array() -= scalar;
+                        break;
+                    default:
+                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                }
+            }
+            else if (op == ELEMENTWISE_DIVIDE_L || ELEMENTWISE_DIVIDE_R || ELEMENTWISE_TIMES)
+            {
+                std::shared_ptr<spMat_t> resultSparse = std::make_shared<spMat_t>(this->getRows(),this->getCols());
+                switch (op)
+                {   
+                    
+                    // Group division and multiplication together
+                    case ELEMENTWISE_DIVIDE_R:
+                        scalar = 1.0f/scalar;
+                    case ELEMENTWISE_TIMES:
+                        //TODO: We could also track the transpose structure here in the output for more efficient operations
+                        if (scalar == 0.0f)
+                            resultSparse->setZero();
+                        else if (this->transposed)
+                            *resultSparse = this->eigSpMatrix->transpose() * scalar;
+                        else 
+                            *resultSparse = *this->eigSpMatrix * scalar;                            
+                        break;                    
+
+                    case ELEMENTWISE_DIVIDE_L:                         
+                        if (this->transposed)
+                            *resultSparse = scalar * this->eigSpMatrix->cwiseInverse().transpose();
+                        else 
+                            *resultSparse = scalar * this->eigSpMatrix->cwiseInverse();                            
+                        break;
+
+                    default:
+                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                }
+                sparseSingle* resultSparseSingle = new sparseSingle(resultSparse); 
+
+                resultMatrix = convertPtr2Mat<sparseSingle>(resultSparseSingle);
+            }            
+            else{
+                throw(MexException("sparseSingle::failingSanityCheck",opName + " failed sanity check!"));
+            }
+        }
+        else if (sizeMatch)   //sparse matrix & dense matrix operation     
+        {
+            resultMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),mxSINGLE_CLASS,mxREAL);
+            mxSingle* resultMatrix_data = mxGetSingles(resultMatrix);
+            Eigen::Map<mxSingleAsMatrix_t> resultMatrixMap(resultMatrix_data,this->getRows(),this->getCols());
+
+            float* denseOperand_data = mxGetSingles(operand);
+            Eigen::Map<mxSingleAsMatrix_t> denseMatrixMap(denseOperand_data,this->getRows(),this->getCols());
+            
+            switch (op)
+                {   
+                    
+                    case ELEMENTWISE_PLUS:
+                        resultMatrixMap = denseMatrixMap;
+
+                        if (this->transposed)
+                            resultMatrixMap += this->eigSpMatrix->transpose();
+                        else
+                            resultMatrixMap += *this->eigSpMatrix;
+                        break;
+                    case ELEMENTWISE_MINUS_L:
+                        resultMatrixMap = denseMatrixMap;
+
+                        if (this->transposed)
+                            resultMatrixMap -= this->eigSpMatrix->transpose();
+                        else
+                            resultMatrixMap -= *this->eigSpMatrix;
+                        break;
+                    case ELEMENTWISE_MINUS_R:
+
+                        if (this->transposed)
+                            resultMatrixMap = this->eigSpMatrix->transpose() - denseMatrixMap;
+                        else
+                            resultMatrixMap = *this->eigSpMatrix - denseMatrixMap;
+                        break;
+
+                    case ELEMENTWISE_DIVIDE_R:
+                        if (this->transposed)
+                            resultMatrixMap = this->eigSpMatrix->transpose().cwiseProduct(denseMatrixMap.cwiseInverse());
+                        else
+                            resultMatrixMap = this->eigSpMatrix->cwiseProduct(denseMatrixMap.cwiseInverse());
+                        break;
+
+                    case ELEMENTWISE_DIVIDE_L:                         
+                        resultMatrixMap = denseMatrixMap;
+
+                        if (this->transposed)
+                            resultMatrixMap.cwiseProduct(this->eigSpMatrix->transpose().cwiseInverse());
+                        else
+                            resultMatrixMap.cwiseProduct(this->eigSpMatrix->cwiseInverse());
+                        break;
+                    
+                    case ELEMENTWISE_TIMES:
+                        //TODO: We could also track the transpose structure here in the output for more efficient operations                        
+
+                        if (this->transposed)
+                            resultMatrixMap = this->eigSpMatrix->transpose().cwiseProduct(denseMatrixMap);
+                        else
+                            resultMatrixMap = this->eigSpMatrix->cwiseProduct(denseMatrixMap);
+                        break;                    
+
+                    
+
+                    default:
+                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                }
+
+        }            
+        else
+            throw(MexException("sparseSingle:wrongOperandSize",opName + "only implemented for scalars and same shape! Implicit expansion not yet supported!"));
+
     }
 
     return resultMatrix;
 }
+
+mxArray* sparseSingle::plus(const mxArray* summand) const
+{
+    return this->elementWiseBinaryOperation(summand,ElementWiseOperation::ELEMENTWISE_PLUS);
+}
+
+mxArray* sparseSingle::minusAsMinuend(const mxArray* subtrahend) const
+{
+    return this->elementWiseBinaryOperation(subtrahend,ElementWiseOperation::ELEMENTWISE_MINUS_R);
+}
+
+mxArray* sparseSingle::minusAsSubtrahend(const mxArray* minuend) const
+{
+    return this->elementWiseBinaryOperation(minuend,ElementWiseOperation::ELEMENTWISE_MINUS_L);
+}
+
+mxArray* sparseSingle::times(const mxArray* product) const
+{
+    return this->elementWiseBinaryOperation(product,ElementWiseOperation::ELEMENTWISE_TIMES);
+}
+
+
+mxArray* sparseSingle::rdivide(const mxArray* divisor) const
+{
+    return this->elementWiseBinaryOperation(divisor,ElementWiseOperation::ELEMENTWISE_DIVIDE_R);
+}
+
+mxArray* sparseSingle::ldivide(const mxArray* dividend) const
+{
+    return this->elementWiseBinaryOperation(dividend,ElementWiseOperation::ELEMENTWISE_DIVIDE_L);
+}
+
+mxArray* sparseSingle::uminus() const
+{
+    const spMat_t& refMatrix = *this->eigSpMatrix;   
+    
+    std::shared_ptr<spMat_t> newEigenMatrix = std::make_shared<spMat_t>(-refMatrix);
+    
+    sparseSingle* retMatrix = new sparseSingle(newEigenMatrix);
+    retMatrix->transposed = this->transposed;
+    
+    return convertPtr2Mat(retMatrix);
+}
+
 //// Linear Algebra ////
+
+mxArray* sparseSingle::mtimesr(const mxArray* rightFactor) const
+{
+    mxClassID mxType = mxGetClassID(rightFactor);
+    //Check if it is a sparse single
+
+    mwSize m = mxGetM(rightFactor);
+    mwSize n = mxGetN(rightFactor);
+    
+    bool isScalar = (m == 1) & (n == 1);
+
+    mxArray* resultMatrix;
+
+    if (mxType == mxUINT64_CLASS && isScalar)
+    {
+        //This might be a sparseSingle matrix
+        
+        sparseSingle* rightFactorSpS = nullptr;
+
+        try 
+        {
+            rightFactorSpS = convertMat2Ptr<sparseSingle>(rightFactor);
+        }
+        catch (MexException& e)
+        {
+            std::string id(e.id());
+            if (id.compare("classHandle:invalidHandle")) //Later we could allow uint64 operations as well, but I advise against this
+                throw(MexException("sparseSingle:wrongDataType","Matrix multiplication only implemented for single!"));
+            else            
+                throw;
+        }
+        catch (...)
+        {
+            throw;
+        }
+
+        bool sizeMatch = this->getCols() == rightFactorSpS->getRows();
+        isScalar = (rightFactorSpS->getRows() == rightFactorSpS->getCols()) && (rightFactorSpS->getCols() == 1);
+
+        if (!sizeMatch && !isScalar)
+            throw(MexException("sparseSingle:wrongOperandSize"," Matrix multiplication only implemented for same shape! Implicit expansion not yet supported!"));
+        else if (isScalar) //Shortcut to the elementwise function
+            return this->elementWiseBinaryOperation(rightFactor,ElementWiseOperation::ELEMENTWISE_TIMES);
+        else 
+        {
+            std::shared_ptr<spMat_t> newMatrix = std::make_shared<spMat_t>(this->getRows(),rightFactorSpS->getCols());
+            if (this->transposed && rightFactorSpS->transposed)
+                *newMatrix = (this->eigSpMatrix->transpose() * rightFactorSpS->eigSpMatrix->transpose()).pruned();
+            else if (this->transposed && !rightFactorSpS->transposed)
+                *newMatrix = (this->eigSpMatrix->transpose() * (*rightFactorSpS->eigSpMatrix)).pruned();
+            else if (!this->transposed && rightFactorSpS->transposed)
+                *newMatrix = ((*this->eigSpMatrix) * rightFactorSpS->eigSpMatrix->transpose()).pruned();
+            else 
+                *newMatrix = ((*this->eigSpMatrix) * (*rightFactorSpS->eigSpMatrix)).pruned();
+                        
+            resultMatrix = convertPtr2Mat<sparseSingle>(new sparseSingle(newMatrix));
+        }
+    }
+    else if (mxType == mxSINGLE_CLASS || mxType == mxDOUBLE_CLASS)
+    {
+        mwSize m = mxGetM(rightFactor);
+        mwSize n = mxGetN(rightFactor);
+        bool sizeMatch = this->getCols() == m;
+
+        if (isScalar)
+        {
+            return this->elementWiseBinaryOperation(rightFactor,ElementWiseOperation::ELEMENTWISE_TIMES);  
+        }
+        else if (sizeMatch)
+        {            
+            //Create the result array and map eigen vector around it - when transposed, the getRows is already considering this
+            resultMatrix = mxCreateNumericMatrix(this->getRows(),n,mxSINGLE_CLASS,mxREAL);
+            mxSingle* result_data = mxGetSingles(resultMatrix);
+            Eigen::Map<mxSingleAsMatrix_t> resultMap(result_data,this->getRows(),n);
+            
+            
+            //Create a Map to the Eigen vector
+            if (mxType == mxSINGLE_CLASS)
+            {
+                mxSingle* vals = mxGetSingles(rightFactor);
+                Eigen::Map<mxSingleAsMatrix_t> factorMatrixMap(vals,m,n);
+            
+                if (this->transposed)
+                    resultMap = this->eigSpMatrix->transpose() * factorMatrixMap;
+                else
+                    resultMap = (*this->eigSpMatrix) * factorMatrixMap;
+            }
+            else if (mxType == mxDOUBLE_CLASS)
+            {
+                mxDouble* vals = mxGetDoubles(rightFactor);
+                Eigen::Map<mxDoubleAsMatrix_t> factorMatrixMap(vals,m,n);                
+                
+            
+                if (this->transposed)
+                    resultMap = this->eigSpMatrix->transpose() * factorMatrixMap.cast<float>();
+                else
+                    resultMap = (*this->eigSpMatrix) * factorMatrixMap.cast<float>();                     
+            }
+            else
+                throw(MexException("sparseSingle:failingSanityCheck","Matrix multiplication failed sanity check!"));
+            
+        }
+        else
+            throw(MexException("sparseSingle:wrongOperandSize"," Matrix multiplication only implemented for same shape or scalar! Implicit expansion not yet supported!"));
+    }
+    else
+        throw(MexException("sparseSingle:wrongDataType","Matrix multiplication only implemented for single!"));
+    
+    return resultMatrix;        
+}
+
+mxArray* sparseSingle::mtimesl(const mxArray* leftFactor) const
+{
+    mxClassID mxType = mxGetClassID(leftFactor);
+    //Check if it is a sparse single
+
+    mwSize m = mxGetM(leftFactor);
+    mwSize n = mxGetN(leftFactor);
+    
+    bool isScalar = (m == 1) & (n == 1);
+
+    mxArray* resultMatrix;
+
+    if (mxType == mxUINT64_CLASS && isScalar)
+    {
+        //This might be a sparseSingle matrix
+        
+        sparseSingle* leftFactorSpS = nullptr;
+
+        try 
+        {
+            leftFactorSpS = convertMat2Ptr<sparseSingle>(leftFactor);
+        }
+        catch (MexException& e)
+        {
+            std::string id(e.id());
+            if (id.compare("classHandle:invalidHandle")) //Later we could allow uint64 operations as well, but I advise against this
+                throw(MexException("sparseSingle:wrongDataType","Matrix multiplication only implemented for single!"));
+            else            
+                throw;
+        }
+        catch (...)
+        {
+            throw;
+        }
+
+        bool sizeMatch = leftFactorSpS->getCols() == this->getRows();
+        isScalar = (leftFactorSpS->getRows() == leftFactorSpS->getCols()) && (leftFactorSpS->getCols() == 1);
+
+        if (!sizeMatch && !isScalar)
+            throw(MexException("sparseSingle:wrongOperandSize"," Matrix multiplication only implemented for same shape! Implicit expansion not yet supported!"));
+        else if (isScalar) //Shortcut to the elementwise function
+            return this->elementWiseBinaryOperation(leftFactor,ElementWiseOperation::ELEMENTWISE_TIMES);
+        else 
+        {
+            std::shared_ptr<spMat_t> newMatrix = std::make_shared<spMat_t>(leftFactorSpS->getRows(),this->getCols());
+            if (leftFactorSpS->transposed && this->transposed)
+                *newMatrix = (leftFactorSpS->eigSpMatrix->transpose()*this->eigSpMatrix->transpose()).pruned();
+            else if (!leftFactorSpS->transposed && this->transposed)
+                *newMatrix = ((*leftFactorSpS->eigSpMatrix)*this->eigSpMatrix->transpose()).pruned();
+            else if (leftFactorSpS->transposed && !this->transposed )
+                *newMatrix = (leftFactorSpS->eigSpMatrix->transpose()*(*this->eigSpMatrix)).pruned();
+            else 
+                *newMatrix = ((*leftFactorSpS->eigSpMatrix)*(*this->eigSpMatrix)).pruned();
+                        
+            resultMatrix = convertPtr2Mat<sparseSingle>(new sparseSingle(newMatrix));
+        }
+    }
+    else if (mxType == mxSINGLE_CLASS || mxType == mxDOUBLE_CLASS)
+    {
+        mwSize m = mxGetM(leftFactor);
+        mwSize n = mxGetN(leftFactor);
+        bool sizeMatch = n == this->getRows();
+
+        if (isScalar)
+        {
+            return this->elementWiseBinaryOperation(leftFactor,ElementWiseOperation::ELEMENTWISE_TIMES);  
+        }
+        else if (sizeMatch)
+        {
+                        
+            //Create the result array and map eigen vector around it - when transposed, the getRows is already considering this
+            resultMatrix = mxCreateNumericMatrix(m,this->getCols(),mxSINGLE_CLASS,mxREAL);
+            mxSingle* result_data = mxGetSingles(resultMatrix);
+            Eigen::Map<mxSingleAsMatrix_t> resultMap(result_data,m,this->getCols());
+            
+            if (mxType == mxSINGLE_CLASS)
+            {
+                //Create a Map to the Eigen vector
+                mxSingle* vals = mxGetSingles(leftFactor);
+                Eigen::Map<mxSingleAsMatrix_t> factorMatrixMap(vals,m,n);
+
+                if (this->transposed)
+                    resultMap = factorMatrixMap * this->eigSpMatrix->transpose();
+                else
+                    resultMap = factorMatrixMap * (*this->eigSpMatrix); 
+
+            }
+            else if (mxType == mxDOUBLE_CLASS)
+            {
+                //Create a Map to the Eigen vector
+                mxDouble* vals = mxGetDoubles(leftFactor);
+                Eigen::Map<mxDoubleAsMatrix_t> factorMatrixMap(vals,m,n);
+
+                if (this->transposed)
+                    resultMap = factorMatrixMap.cast<float>() * this->eigSpMatrix->transpose();
+                else
+                    resultMap = factorMatrixMap.cast<float>() * (*this->eigSpMatrix); 
+
+            }
+            else
+                throw(MexException("sparseSingle:wrongDataType","Matrix multiplication only implemented for single!"));     
+        }
+        else
+            throw(MexException("sparseSingle:wrongOperandSize"," Matrix multiplication only implemented for same shape or scalar! Implicit expansion not yet supported!"));
+    }
+    else
+        throw(MexException("sparseSingle:wrongDataType","Matrix multiplication only implemented for single!"));
+    
+    return resultMatrix;        
+}
 
 sparseSingle* sparseSingle::transpose() const {
     sparseSingle* transposedCopy = new sparseSingle();
@@ -866,7 +1423,7 @@ mxArray* sparseSingle::timesVec(const mxArray* vals_) const
                 break;  
 
             default:
-                throw(MexException("sparseSingle:timesVec:invalidAlgrithm","Selected parallelization algorithm not known!"));
+                throw(MexException("sparseSingle:timesVec:invalidAlgorithm","Selected parallelization algorithm not known!"));
         }
         
     }

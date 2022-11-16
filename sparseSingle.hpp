@@ -5,6 +5,14 @@
 #include <Eigen/Sparse>
 #include "class_handle.hpp"
 
+template<mxClassID> struct mxClassToDataType_t;
+template<> struct mxClassToDataType_t<mxClassID::mxDOUBLE_CLASS> { using type = mxDouble; };
+template<> struct mxClassToDataType_t<mxClassID::mxSINGLE_CLASS> { using type = mxSingle; };
+
+template<mxClassID T>
+using mxClassToDataType = typename mxClassToDataType_t<T>::type;
+
+
 class sparseSingle
 {
 public:    
@@ -13,10 +21,16 @@ public:
     typedef Eigen::SparseMatrix<float,Eigen::ColMajor,index_t> spMat_t;
     typedef Eigen::SparseMatrix<float,Eigen::RowMajor,index_t> spMatTransposed_t;
 
-    typedef Eigen::Matrix<float,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor> mxSingleAsMatrix_t;
-    typedef Eigen::Array<float,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor> mxSingleAsArray_t;
-    typedef Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor> mxDoubleAsMatrix_t;
-    typedef Eigen::Array<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor> mxDoubleAsArray_t;
+    template<typename mxType>
+    using mxAsMatrix_t = Eigen::Matrix<mxType,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor>;
+    template<typename mxType>
+    using mxAsArray_t = Eigen::Array<mxType,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor>;
+
+    using mxSingleAsMatrix_t = mxAsMatrix_t<mxSingle>;
+    using mxSingleAsArray_t = mxAsArray_t<mxSingle>;
+
+    using mxDoubleAsMatrix_t = mxAsMatrix_t<mxDouble>;
+    using mxDoubleAsArray_t = mxAsArray_t<mxDouble>;
 
     enum CscParallelism 
     {
@@ -25,14 +39,26 @@ public:
         ACROSS_COLUMN
     };
 
+    enum ElementWiseOperation
+    {
+        ELEMENTWISE_PLUS,
+        ELEMENTWISE_TIMES,
+        ELEMENTWISE_DIVIDE_L,
+        ELEMENTWISE_DIVIDE_R,
+        ELEMENTWISE_MINUS_R,
+        ELEMENTWISE_MINUS_L
+    };
+
     //// Functions ////
 
     /// @brief construct an empty sparse matrix
     sparseSingle();
 
-    /// @brief copy constructor for given Eigen matrix (mostly internal copies)
+    /// @brief copy constructor performing deep copy
     /// @param eigSpMatrix_ 
-    sparseSingle(std::shared_ptr<spMat_t> eigSpMatrix_);
+    sparseSingle(const sparseSingle& copy);
+
+    
 
     /// @brief construct single sparse matrix from a matrix (matlab double sparse matrix, single matrix, or double matrix)
     /// @param sparseDouble 
@@ -60,23 +86,6 @@ public:
 
     ~sparseSingle();
 
-    /// @brief Matrix/Vector product
-    /// @param vals 
-    /// @param n 
-    /// @return a non-sparse single vector
-    mxArray* timesVec(const mxArray* vals) const;
-
-    /// @brief Vector/Matrix product
-    /// @param vals 
-    /// @param n 
-    /// @return a non-sparse single vector
-    mxArray* vecTimes(const mxArray* vals) const;
-
-    /// @brief Multiplication with Scalar
-    /// @param scalar
-    /// @return scaled sparse single matrix
-    sparseSingle* timesScalar(const mxArray* val) const;
-
     mwSize getNnz() const;
     mwSize getCols() const;
     mwSize getRows() const;
@@ -96,14 +105,76 @@ public:
     ///mxArray* getCscParallelism() const;
     
 
+    sparseSingle* horzcat() const;
+
     /// @brief Get dense matrix as mxArray
     /// @return Dense Matrix as mxArray
     mxArray* full() const;
 
-    /// @brief Add a dense single matrix to sparse matrix
-    /// @param denseMx single matrix as mxArray
-    /// @return Dense single matrix
-    mxArray* addDense(const mxArray* denseMx) const;
+    //// binary elementwise operations ////
+
+    /// @brief Add a single matrix/scalar to sparse matrix
+    /// @param summand single matrix as mxArray, can be also sparseSingle or scalar
+    /// @return single matrix
+    mxArray* plus(const mxArray* summand) const;
+
+    /// @brief Add a single matrix/scalar to sparse matrix
+    /// @param factor single matrix as mxArray, can be also sparseSingle or scalar
+    /// @return single matrix
+    mxArray* times(const mxArray* factor) const;
+
+    /// @brief Returns the negated matrix
+    /// @return single sparse matrix
+    mxArray* uminus() const;
+
+    /// @brief Subtract a sparse matrix from a single matrix/scalar
+    /// @param minuend matrix as mxArray, can be also sparseSingle or scalar, sucht that result = minuend - this
+    /// @return single matrix
+    mxArray* minusAsSubtrahend(const mxArray* minuend) const;
+
+    /// @brief Subtract a single matrix/scalar from a sparse matrix
+    /// @param subtrahend matrix as mxArray, can be also sparseSingle or scalar, sucht that result = this - subtrahend
+    /// @return single matrix
+    mxArray* minusAsMinuend(const mxArray* subtrahend) const;
+
+    /// @brief Divide a sparse matrix by given divisor
+    /// @param divisor matrix as mxArray, can be also sparseSingle or scalar, sucht that result = this./divisor
+    /// @return single matrix
+    mxArray* rdivide(const mxArray* divisor) const;
+
+    /// @brief Divide a dividend by a sparse matrix
+    /// @param dividend matrix as mxArray, can be also sparseSingle or scalar, sucht that result = dividend./this
+    /// @return single matrix
+    mxArray* ldivide(const mxArray* dividend) const;
+
+    /// LINEAR ALGEBRA ///
+
+    /// @brief Matrix multiplication from the right to this matrix
+    /// @param rightfactor pointer to mxArray containt the right factor to (matrix) multiply 
+    /// @return a dense matrix or a sparse single handle as mxArray
+    mxArray* mtimesr(const mxArray* rightfactor) const;
+
+    /// @brief Matrix multiplication from the left to this matrix
+    /// @param rightfactor pointer to mxArray containt the left factor to (matrix) multiply 
+    /// @return a dense matrix or a sparse single handle as mxArray
+    mxArray* mtimesl(const mxArray* leftfactor) const;
+
+    /// @brief Matrix/Vector product
+    /// @param vals 
+    /// @param n 
+    /// @return a non-sparse single vector
+    mxArray* timesVec(const mxArray* vals) const;
+
+    /// @brief Vector/Matrix product
+    /// @param vals 
+    /// @param n 
+    /// @return a non-sparse single vector
+    mxArray* vecTimes(const mxArray* vals) const;
+
+    /// @brief Multiplication with Scalar
+    /// @param scalar
+    /// @return scaled sparse single matrix
+    sparseSingle* timesScalar(const mxArray* val) const;
 
     //// Indexing ////
 
@@ -112,7 +183,12 @@ public:
     /// @param colIndex 
     /// @return Pointer to sparse Single submatrix
     /// @todo This can be very slow. Better alternatives for slicing?
-    sparseSingle* rowColIndexing(const mxArray * const rowIndex, const mxArray * const colIndex) const;               
+    sparseSingle* rowColIndexing(const mxArray * const rowIndex, const mxArray * const colIndex) const;  
+
+    /// @brief Row / Column Index assignment
+    /// @param rowIndex 
+    /// @param colIndex 
+    sparseSingle* rowColAssignment(const mxArray * const rowIndex, const mxArray * const colIndex, const mxArray* assignedValues);                 
     
     /// @brief Index with a linear index list
     /// @param indexList
@@ -140,8 +216,45 @@ private:
     
     const CscParallelism cscParallelize = DEFAULT; // Leave this! The others are just for internal testing.
     
-
     //// PRIVATE MEMBER FUNCTIONS ////
+    /// @brief non-copy constructor for given Eigen matrix (mostly internal copies)
+    /// @param eigSpMatrix_ 
+    sparseSingle(std::shared_ptr<spMat_t> eigSpMatrix_);
+
+    /// @brief copy constructor sharing matrix storage
+    /// @param eigSpMatrix_ 
+    sparseSingle(sparseSingle& shared_copy);
+
+    /*
+    template<typename T>    
+    inline mxArray* mtimesl_typedMultiplier(mxArray* leftFactor, T tmp = T()) const
+    {
+        using Tvalue = mxClassToDataType<T>;
+        mwSize m = mxGetM(leftFactor);
+        mxArray* resultMatrix = mxCreateNumericMatrix(m,this->getCols(),mxSINGLE_CLASS,mxREAL);
+        mxSingle* result_data = mxGetSingles(resultMatrix);
+        Eigen::Map<mxSingleAsMatrix_t> resultMap(result_data,m,this->getCols());
+
+        //Create a Map to the Eigen vector
+        Tvalue* vals;
+        if (std::is_same<mxSingle,Tvalue>)
+            vals = mxGetSingles(leftFactor);
+        else if (std::is_same<mxSingle,Tvalue>)
+            vals = mxGetDoubles(leftFactor);
+        else
+            throw(MexException("sparseSingle:wrongDataType"),"Data type not supported!");
+        
+        mxAsMatrix_t<Tvalue> factorMatrixMap(vals,m,n);
+
+        if (this->transposed)
+            resultMap = factorMatrixMap.cast<float>() * this->eigSpMatrix->transpose();
+        else
+            resultMap = factorMatrixMap.cast<float>() * (*this->eigSpMatrix); 
+
+        return resultMatrix;
+    }
+    */
+
 
     /// @brief construct sparse matrix from triplets with given size
     /// @param i row indices 
@@ -158,6 +271,7 @@ private:
 
     index_t linearIndexToRowIndex(const index_t linIx) const;
 
+    mxArray* elementWiseBinaryOperation(const mxArray* operand, const ElementWiseOperation& op) const;
 
     template<typename T>
     bool isConsecutiveArray(const T * const array, const index_t n) const

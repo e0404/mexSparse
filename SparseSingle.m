@@ -47,21 +47,97 @@ classdef SparseSingle
                 error('Arrays have incompatible sizes for this operation');            
 
             elseif isa(A, 'SparseSingle') && isnumeric(B) && ~issparse(B)
-                ret = mexSparseSingle('addDense',A.objectHandle,B);               
+                ret = mexSparseSingle('plus',A.objectHandle,B);               
                 % matrix * vector
             elseif isa(B, 'SparseSingle') && isnumeric(A) && ~issparse(A)
-                ret = mexSparseSingle('addDense',B.objectHandle,A);               
+                ret = mexSparseSingle('plus',B.objectHandle,A);      
+            elseif isa(A, 'SparseSingle') && isa(B,'SparseSingle')
+                ret = SparseSingle(mexSparseSingle('plus',A.objectHandle,B.objectHandle));      
             else
                 error('Inputs %s & %s not supported', class(A),class(B));
             end
         end
 
+        function ret = times(A,B)
+            if isempty(A) || isempty(B)
+                error('Arrays have incompatible sizes for this operation');            
+
+            elseif isa(A, 'SparseSingle') && isnumeric(B) && ~issparse(B)
+                ret = mexSparseSingle('times',A.objectHandle,B);               
+                % matrix * vector
+            elseif isa(B, 'SparseSingle') && isnumeric(A) && ~issparse(A)
+                ret = mexSparseSingle('times',B.objectHandle,A);      
+            elseif isa(A, 'SparseSingle') && isa(B,'SparseSingle')
+                ret = mexSparseSingle('times',A.objectHandle,B.objectHandle);      
+            else
+                error('Inputs %s & %s not supported', class(A),class(B));
+            end
+
+            ret = SparseSingle(ret);
+        end
+
         function ret = minus(A,B)
-            error('sparseSingle:missingImplementation','minus operator not yet implemented!');
+            if isempty(A) || isempty(B)
+                error('Arrays have incompatible sizes for this operation');            
+
+            elseif isa(A, 'SparseSingle') && isnumeric(B) && ~issparse(B)
+                ret = mexSparseSingle('minusAsMinuend',A.objectHandle,B);               
+                % matrix * vector
+            elseif isa(B, 'SparseSingle') && isnumeric(A) && ~issparse(A)
+                ret = mexSparseSingle('minusAsSubtrahend',B.objectHandle,A);      
+            elseif isa(A, 'SparseSingle') && isa(B,'SparseSingle')
+                ret = SparseSingle(mexSparseSingle('minusAsMinuend',A.objectHandle,B.objectHandle));      
+            else
+                error('Inputs %s & %s not supported', class(A),class(B));
+            end
         end
 
         function ret = uminus(this)            
-            error('sparseSingle:missingImplementation','negation not yet implemented!');
+            ret = SparseSingle(mexSparseSingle('uminus',this.objectHandle));
+        end
+
+        function ret = ldivide(A,B)            
+            warning('rdivide for sparseSingle behavior differs from its double counterpart, as only nnzs are affected!');
+            if isempty(A) || isempty(B)
+                error('Arrays have incompatible sizes for this operation');            
+            elseif isa(A, 'SparseSingle') && isnumeric(B) && ~issparse(B)
+                retHandle = mexSparseSingle('ldivide',A.objectHandle,B);               
+                % matrix * vector
+            elseif isa(B, 'SparseSingle') && isnumeric(A) && ~issparse(A)
+                retHandle = mexSparseSingle('rdivide',B.objectHandle,A);      
+            elseif isa(A, 'SparseSingle') && isa(B,'SparseSingle')
+                retHandle = mexSparseSingle('ldivide',A.objectHandle,B.objectHandle);      
+            else
+                error('Inputs %s & %s not supported', class(A),class(B));
+            end
+
+            ret = SparseSingle(retHandle);
+        end
+
+        function ret = rdivide(A,B)     
+            warning('rdivide for sparseSingle behavior differs from its double counterpart, as only nnzs are affected!');
+            if isempty(A) || isempty(B)
+                error('Arrays have incompatible sizes for this operation');            
+            elseif isa(A, 'SparseSingle') && isnumeric(B) && ~issparse(B)
+                retHandle = mexSparseSingle('rdivide',A.objectHandle,B);               
+                % matrix * vector
+            elseif isa(B, 'SparseSingle') && isnumeric(A) && ~issparse(A)
+                retHandle = mexSparseSingle('ldivide',B.objectHandle,A);      
+            elseif isa(A, 'SparseSingle') && isa(B,'SparseSingle')
+                retHandle = mexSparseSingle('rdivide',A.objectHandle,B.objectHandle);      
+            else
+                error('Inputs %s & %s not supported', class(A),class(B));
+            end
+
+            ret = SparseSingle(retHandle);
+        end
+
+        function ret = mldivide(A,B)            
+            error('sparseSingle:missingImplementation','ldivide not yet implemented!');
+        end
+
+        function ret = mrdivide(A,B)            
+            error('sparseSingle:missingImplementation','rdivide not yet implemented!');
         end
 
         function ret = find(this)            
@@ -94,55 +170,67 @@ classdef SparseSingle
         end
 
         %%mtimes
-        function ret = mtimes(arg1,arg2)
-            if isempty(arg1) || isempty(arg2)
+        function ret = mtimes(A,B)
+            if isempty(A) || isempty(B)
                 error('One Input is empty');
 
                 % vector * matrix
                 % arg1: numeric vector
-                % arg2: SparseSingle obj              
+                % arg2: SparseSingle obj
+            elseif isa(A, 'SparseSingle') && isnumeric(B) && ~issparse(B)
+                ret = mexSparseSingle('mtimesr',A.objectHandle,B); 
+                % matrix * vector     
+            elseif isa(A, 'SparseSingle') && isa(B,'SparseSingle')
+                ret = SparseSingle(mexSparseSingle('mtimesr',A.objectHandle,B.objectHandle));  
+                 
+            elseif isa(B, 'SparseSingle') && isnumeric(A) && ~issparse(A)
+                ret = mexSparseSingle('mtimesl',B.objectHandle,A);
+                if isscalar(A)              
+                    ret = SparseSingle(ret);
+                end
+            %{
+            elseif isrow(A) && isa(B, 'SparseSingle')
 
-            elseif isrow(arg1) && isa(arg2, 'SparseSingle')
-
-                if ~isnumeric(arg1)
+                if ~isnumeric(A)
                     error('First Input (arg1) must be numeric');
                 end
 
-                if ~isa(arg1, 'single')
-                    arg1 = single(arg1);
+                if ~isa(A, 'single')
+                    A = single(A);
                 end
                 
-                if isscalar(arg1)
-                    ret = SparseSingle(mexSparseSingle('timesScalar',arg2.objectHandle,arg1));
-                elseif numel(arg1) == arg2.nRows
-                    ret = mexSparseSingle('vecTimes',arg2.objectHandle,arg1);
+                if isscalar(A)
+                    ret = SparseSingle(mexSparseSingle('timesScalar',B.objectHandle,A));
+                elseif numel(A) == B.nRows
+                    ret = mexSparseSingle('vecTimes',B.objectHandle,A);
                 else
                     error('Invalid Dimensions for multiplication!');
                 end
 
                 % matrix * vector
-            elseif isa(arg1, 'SparseSingle') && iscolumn(arg2)
+            elseif isa(A, 'SparseSingle') && iscolumn(B)
 
-                if ~isnumeric(arg2)
+                if ~isnumeric(B)
                     error('Second Input (arg2) must be numeric');
                 end
 
-                if ~isa(arg2, 'single')
-                    arg2 = single(arg2);
+                if ~isa(B, 'single')
+                    B = single(B);
                 end
 
-                if isscalar(arg2)
-                    ret = SparseSingle(mexSparseSingle('timesScalar',arg1.objectHandle,arg2));
-                elseif numel(arg2) == arg1.nCols
-                    ret = mexSparseSingle('timesVec',arg1.objectHandle,arg2);
+                if isscalar(B)
+                    ret = SparseSingle(mexSparseSingle('timesScalar',A.objectHandle,B));
+                elseif numel(B) == A.nCols
+                    ret = mexSparseSingle('timesVec',A.objectHandle,B);
                 else
                     error('Invalid Dimensions for multiplication!');
                 end
 
-            elseif ismatrix(arg1) && ismatrix(arg2)
+            elseif ismatrix(A) && ismatrix(B)
                 error('Matrix Matrix product not implemented');
+            %}
             else
-                error('Input of type %s not supported', class(v));
+                error('mtimes for inputs %s & %s not supported', class(A),class(B));
             end
         end
 
