@@ -1,6 +1,9 @@
-#pragma once
+#ifndef SPARSE_SINGLE_HPP
+#define SPARSE_SINGLE_HPP
 
+#include <type_traits>
 #include "mex.h"
+#include <memory>
 #include <Eigen/Core>
 #include <Eigen/Sparse>
 #include "class_handle.hpp"
@@ -372,3 +375,5 @@ private:
 
     };
 };
+
+#endif //SPARSE_SINGLE_HPP
