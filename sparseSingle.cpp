@@ -278,6 +278,13 @@ mxArray* sparseSingle::nnz() const {
     return mxCreateDoubleScalar((double) this->getNnz());
 }
 
+bool sparseSingle::isScalar() const {
+    return (this->getCols() == 1) && (this->getRows() == 1);
+}
+
+bool sparseSingle::isSquare() const {    
+    return this->getCols() == this->getRows();
+}
 //// Indexing ////
  
 sparseSingle* sparseSingle::rowColIndexing(const mxArray * const rowIndex, const mxArray * const colIndex) const

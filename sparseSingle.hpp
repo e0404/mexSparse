@@ -91,6 +91,8 @@ public:
     mwSize getRows() const;
     mxArray* size() const;
     mxArray* nnz() const;
+    bool isScalar() const;
+    bool isSquare() const;
 
     /// @brief Transposes the matrix by setting a transpose flag
     /// @return Pointer to transposed single sparse matrix. Will only hold a shared copy under the hood
