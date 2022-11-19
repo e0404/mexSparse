@@ -133,7 +133,15 @@ classdef SparseSingle
         end
 
         function ret = mldivide(A,B)            
-            error('sparseSingle:missingImplementation','ldivide not yet implemented!');
+            if (issparse(A) && isnumeric(B) && ~issparse(B))
+                ret = mexSparseSingle('mldivide',A.objectHandle,B);
+            elseif issparse(A) && issparse(B)
+                ret = SparseSingle(mexSparseSingle('mldivide',A.objectHandle,B.objectHandle));
+            elseif isa(B, 'SparseSingle') && isnumeric(A) && ~issparse(A)
+                ret = A\full(B);
+            else
+                error('Inputs %s & %s not supported', class(A),class(B));  
+            end
         end
 
         function ret = mrdivide(A,B)            

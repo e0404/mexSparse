@@ -285,6 +285,25 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         return;
     }
 
+    if (cmd == "mldivide")
+    {
+        if (nlhs < 0 || nlhs > 1 || nrhs != 3)
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:mldivide","Unexpected Number of arguments!");
+        try {           
+            mxArray* result = sparseSingle_instance->mldivide(prhs[2]);
+            plhs[0] = result;
+        }
+        catch (const MexException& e)
+        {
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
+        catch(...)
+        {
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:unknownError:mldivide","Multiplication failed for unknown reason!");
+        }
+        return;
+    }
+
     if (cmd == "timesVec")
     {
         if (nlhs < 0 || nlhs > 1)

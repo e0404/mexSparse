@@ -53,13 +53,21 @@ sparseSingle::sparseSingle(const mxArray *inputMatrix)
             
             //Create the Eigen Sparse Matrix        
             try {        
-                //this->eigSpMatrix = std::shared_ptr<spMat_t>(new spMat_t(nRows,nCols));
-                this->eigSpMatrix = std::make_shared<spMat_t>(nRows,nCols);
-                this->eigSpMatrix->makeCompressed();
+                /*
+                //For some reason manual copying creates issues with m_size in CompressedStorage
+                //Maybe this would work with calling conservativeResize afterwards
+                //this->eigSpMatrix = std::shared_ptr<spMat_t>(new spMat_t(nRows,nCols));                
+                this->eigSpMatrix = std::make_shared<spMat_t>(nRows,nCols);                
+                //this->eigSpMatrix->makeCompressed();
                 this->eigSpMatrix->reserve(nnz);
                 std::transform(std::execution::par_unseq, pr, pr+nnz, this->eigSpMatrix->valuePtr(), [](double d) -> float { return static_cast<float>(d);});    
                 std::transform(std::execution::par_unseq, ir, ir+nnz, this->eigSpMatrix->innerIndexPtr(), [](mwIndex i) -> index_t { return static_cast<index_t>(i);});
                 std::transform(std::execution::par_unseq, jc, jc+(nCols+1), this->eigSpMatrix->outerIndexPtr(), [](mwIndex i) -> index_t { return static_cast<index_t>(i);});
+                this->eigSpMatrix->makeCompressed();
+                */
+
+               Eigen::Map<Eigen::SparseMatrix<double,Eigen::ColMajor,mwIndex>> matlabSparse(nRows,nCols,nnz,jc,ir,pr);
+               this->eigSpMatrix = std::make_shared<spMat_t>(matlabSparse.cast<float>());
             }
             catch (const std::exception& e) {
                 std::string msg = std::string("Eigen Map could not be constructed from sparse matrix! Caught exception ") + e.what();      
@@ -285,6 +293,20 @@ bool sparseSingle::isScalar() const {
 bool sparseSingle::isSquare() const {    
     return this->getCols() == this->getRows();
 }
+
+//// Private Helpers ////
+void sparseSingle::reportSolverInfo(Eigen::ComputationInfo& info) const
+{
+    //if (info == Eigen::ComputationInfo::Success)
+    //        mexWarnMsgTxt("Solved!!!");
+    if (info == Eigen::ComputationInfo::NumericalIssue)
+        mexWarnMsgIdAndTxt("sparseSingle:solver:numericalIssue","Matrix is close to singular or badly scaled. Results may be inaccurate.");
+    if (info == Eigen::ComputationInfo::InvalidInput)
+        throw(MexException("sparseSingle:solver:wrongInput","Sparse solver could not interpret input!"));
+    if (info == Eigen::ComputationInfo::NoConvergence)
+        mexWarnMsgIdAndTxt("sparseSingle:solver:numericalIssue","Sparse solver could not interpret input!");
+}
+
 //// Indexing ////
  
 sparseSingle* sparseSingle::rowColIndexing(const mxArray * const rowIndex, const mxArray * const colIndex) const
@@ -1339,6 +1361,208 @@ mxArray* sparseSingle::mtimesl(const mxArray* leftFactor) const
         throw(MexException("sparseSingle:wrongDataType","Matrix multiplication only implemented for single!"));
     
     return resultMatrix;        
+}
+
+mxArray* sparseSingle::mldivide(const mxArray* b) const
+{
+    mxClassID mxType = mxGetClassID(b);
+    //Check if it is a sparse single
+
+    mwSize m = mxGetM(b);
+    mwSize n = mxGetN(b);
+
+    bool isScalar = mxIsScalar(b);
+
+    mxArray* resultMatrix;
+
+    //This might be a sparseSingle matrix, try it out
+    if (mxType == mxUINT64_CLASS && isScalar)
+    {
+        
+        sparseSingle* bSpS = nullptr;
+
+        try 
+        {
+            bSpS = convertMat2Ptr<sparseSingle>(b);
+        }
+        catch (MexException& e)
+        {
+            std::string id(e.id());
+            if (id.compare("classHandle:invalidHandle")) //Later we could allow uint64 operations as well, but I advise against this
+                throw(MexException("sparseSingle:wrongDataType","mldivide only implemented for single!"));
+            else            
+                throw;
+        }
+        catch (...)
+        {
+            throw;
+        }
+
+        bool sizeMatch = this->getRows() == bSpS->getRows();
+        isScalar = bSpS->isScalar();
+
+        if (isScalar) //Shortcut to the elementwise function
+            resultMatrix = this->elementWiseBinaryOperation(b,ElementWiseOperation::ELEMENTWISE_DIVIDE_L);
+        else if (sizeMatch && this->isSquare())
+        {
+            std::shared_ptr<spMat_t> x = std::make_shared<spMat_t>(this->getCols(),bSpS->getCols());
+            
+            //If the matrix is square, we use SparseLU
+            Eigen::ComputationInfo info;
+
+            //The solver only works with column major sparse matrices, unfortunately
+            Eigen::SparseLU<spMat_t> solverLU;
+            if (this->transposed)                            
+                solverLU.compute(this->eigSpMatrix->transpose());
+            else
+                solverLU.compute(*this->eigSpMatrix);
+            
+            info = solverLU.info();
+            this->reportSolverInfo(info);
+
+            if (bSpS->transposed)
+                *x = solverLU.solve(spMat_t(bSpS->eigSpMatrix->transpose()));
+            else
+                *x = solverLU.solve(*bSpS->eigSpMatrix);
+            
+            info = solverLU.info();
+            this->reportSolverInfo(info);
+                        
+            resultMatrix = convertPtr2Mat<sparseSingle>(new sparseSingle(x));
+        }
+        else if (sizeMatch)
+        {
+            std::shared_ptr<spMat_t> x = std::make_shared<spMat_t>(this->getCols(),bSpS->getCols());
+
+            Eigen::ComputationInfo info;
+            //The solver only works with column major sparse matrices, unfortunately
+            Eigen::SparseLU<spMat_t,Eigen::COLAMDOrdering<index_t>> solverQR;
+            if (this->transposed)                            
+                solverQR.compute(this->eigSpMatrix->transpose());
+            else
+                solverQR.compute(*this->eigSpMatrix);
+            
+            info = solverQR.info();
+            this->reportSolverInfo(info);
+
+            if (bSpS->transposed)
+                *x = solverQR.solve(spMat_t(bSpS->eigSpMatrix->transpose()));
+            else
+                *x = solverQR.solve(*bSpS->eigSpMatrix);
+            
+            info = solverQR.info();
+            this->reportSolverInfo(info);
+                        
+            resultMatrix = convertPtr2Mat<sparseSingle>(new sparseSingle(x));
+        }
+        else
+            throw(MexException("sparseSingle:wrongOperandSize"," Matrix multiplication only implemented for same shape! Implicit expansion not yet supported!"));
+    }
+    else if (mxType == mxSINGLE_CLASS || mxType == mxDOUBLE_CLASS)
+    {
+        
+        mwSize b_m = mxGetM(b);
+        mwSize b_n = mxGetN(b);
+
+        bool sizeMatch = this->getRows() == b_m;
+
+        //mexPrintf("Right argument is dense");
+
+        if (isScalar) //Shortcut to the elementwise function
+            resultMatrix = this->elementWiseBinaryOperation(b,ElementWiseOperation::ELEMENTWISE_DIVIDE_L);        
+        else if (sizeMatch)
+        {
+            mwSize result_m, result_n;
+            result_m = this->getCols();
+            result_n = b_n;
+            
+            //Create the result array and map eigen vector around it - when transposed, the getRows is already considering this
+            resultMatrix = mxCreateNumericMatrix(result_m,result_n,mxSINGLE_CLASS,mxREAL);
+            mxSingle* result_data = mxGetSingles(resultMatrix);
+            Eigen::Map<mxSingleAsMatrix_t> resultMap(result_data,result_m,result_n);
+            
+            //If the matrix is square, we use SparseLU
+            Eigen::ComputationInfo info;
+            const spMat_t& sparseMatrix = *this->eigSpMatrix;
+            if (this->isSquare())
+            {
+                //mexPrintf("Solving Square matrix!");
+                
+                //The solver only works with column major sparse matrices, unfortunately
+                Eigen::SparseLU<spMat_t> solverLU;
+                if (this->transposed)
+                {
+                    solverLU.analyzePattern(sparseMatrix.transpose());
+                    solverLU.factorize(sparseMatrix.transpose());
+                }
+                else
+                {
+                    
+                    solverLU.analyzePattern(sparseMatrix);
+                    solverLU.factorize(sparseMatrix);
+                }
+
+                info = solverLU.info();
+                this->reportSolverInfo(info);
+
+                //Create a Map to the Eigen vector
+                if (mxType == mxSINGLE_CLASS)
+                {
+                    mxSingle* vals = mxGetSingles(b);
+                    Eigen::Map<mxSingleAsMatrix_t> factorMatrixMap(vals,b_m,b_n);
+                    
+                    resultMap = solverLU.solve(factorMatrixMap);
+                    info = solverLU.info();
+                }
+                else if (mxType == mxDOUBLE_CLASS)
+                {
+                    mxDouble* vals = mxGetDoubles(b);
+                    Eigen::Map<mxDoubleAsMatrix_t> factorMatrixMap(vals,b_m,b_n);                
+                    
+                    resultMap = solverLU.solve(factorMatrixMap.cast<float>());
+                    info = solverLU.info();
+                }
+                else
+                    throw(MexException("sparseSingle:failingSanityCheck","Matrix multiplication failed sanity check!"));    
+            }
+            else
+            {
+                //The solver only works with column major sparse matrices, unfortunately
+                Eigen::SparseQR<spMat_t,Eigen::COLAMDOrdering<index_t>> solverQR;
+                if (this->transposed)
+                    solverQR.compute(sparseMatrix.transpose());
+                else
+                    solverQR.compute(sparseMatrix);
+                
+                info = solverQR.info();
+                this->reportSolverInfo(info);
+
+                //Create a Map to the Eigen vector
+                if (mxType == mxSINGLE_CLASS)
+                {
+                    mxSingle* vals = mxGetSingles(b);
+                    Eigen::Map<mxSingleAsMatrix_t> factorMatrixMap(vals,b_m,b_n);
+                    
+                    resultMap = solverQR.solve(factorMatrixMap);
+                    info = solverQR.info();
+                }
+                else if (mxType == mxDOUBLE_CLASS)
+                {
+                    mxDouble* vals = mxGetDoubles(b);
+                    Eigen::Map<mxDoubleAsMatrix_t> factorMatrixMap(vals,b_m,b_n);                
+                    
+                    resultMap = solverQR.solve(factorMatrixMap.cast<float>());
+                    info = solverQR.info();
+                }
+                else
+                    throw(MexException("sparseSingle:failingSanityCheck","Matrix multiplication failed sanity check!")); 
+            }
+            this->reportSolverInfo(info);
+        }
+        else
+            throw(MexException("sparseSingle:wrongOperandSize"," Matrix multiplication only implemented for same shape! Implicit expansion not yet supported!"));
+    }
+    return resultMatrix;
 }
 
 sparseSingle* sparseSingle::transpose() const {

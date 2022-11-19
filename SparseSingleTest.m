@@ -1,5 +1,5 @@
 classdef SparseSingleTest < matlab.unittest.TestCase
-    
+
     properties (Constant)
         relTolerance = 5*eps('single');
     end
@@ -39,7 +39,7 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.fatalAssertTrue(issparse(tests));
             testCase.fatalAssertSize(tests,[3 4]);
             testCase.fatalAssertEqual(nnz(tests),0);
-            testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));            
+            testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));
 
             %Invalid Inputs
             testCase.verifyError(@() SparseSingle([3 2],4),'sparseSingle:invalidInputType');
@@ -47,7 +47,7 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.verifyError(@() SparseSingle(3,[2 3]),'sparseSingle:invalidInputType');
             testCase.verifyError(@() SparseSingle("hello",1),'sparseSingle:invalidInputType');
             testCase.verifyError(@() SparseSingle(1,"hello"),'sparseSingle:invalidInputType');
-            
+
             %You can also construct sparse doubles from rows/columns given as char, uint, etc. in Matlab. Should we test that?
         end
 
@@ -57,13 +57,13 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.fatalAssertTrue(issparse(tests));
             testCase.fatalAssertSize(tests,[4 5]);
             testCase.fatalAssertEqual(nnz(tests),4);
-            testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));   
+            testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));
 
             tests = SparseSingle(i,j,v,10,20);
             testCase.fatalAssertTrue(issparse(tests));
             testCase.fatalAssertSize(tests,[10 20]);
             testCase.fatalAssertEqual(nnz(tests),4);
-            testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));  
+            testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));
 
             %Invalid Inputs
             testCase.verifyError(@() SparseSingle([3 2],4,ones(1,2,'single')),'sparseSingle:invalidInputType');
@@ -77,7 +77,7 @@ classdef SparseSingleTest < matlab.unittest.TestCase
 
             test = [test test];
             tests = [tests tests];
-            
+
             testCase.verifySize(tests,size(test));
             testCase.verifyEqual(nnz(test),nnz(tests));
         end
@@ -88,17 +88,17 @@ classdef SparseSingleTest < matlab.unittest.TestCase
 
             testt = test';
             testst = tests';
-            testCase.fatalAssertEqual(size(testt),size(testst));            
+            testCase.fatalAssertEqual(size(testt),size(testst));
         end
 
         function test_find(testCase)
             test = sprand(5,10,0.25);
             tests = SparseSingle(test);
-            
+
             testCase.verifyEqual(find(test),find(tests));
             testCase.verifyEqual(find(test'),find(tests'));
         end
-            
+
         function test_full(testCase)
             test = sprand(5,10,0.25);
             tests = SparseSingle(test);
@@ -115,28 +115,28 @@ classdef SparseSingleTest < matlab.unittest.TestCase
 
         function test_plus(testCase)
             test = sprand(5,10,0.25);
-            tests = SparseSingle(test); 
-            
+            tests = SparseSingle(test);
+
             %Scalar Addition
             test5 = test + 5;
             tests5 = tests + 5;
             testCase.assertEqual(issparse(test5),issparse(tests5)); %Equal behavior
             testCase.verifySize(tests5,size(test5));
-            testCase.verifyTrue(all(test5 - tests5 < testCase.relTolerance*test5,'all'));            
+            testCase.verifyTrue(all(test5 - tests5 < testCase.relTolerance*test5,'all'));
 
             tests5 = 5 + tests;
             testCase.assertEqual(issparse(test5),issparse(tests5)); %Equal behavior
             testCase.verifySize(tests5,size(test5));
             testCase.verifyTrue(all(test5 - tests5 < testCase.relTolerance*test5,'all'));
-            
-            
+
+
             %Matrix addition
             testM = test + ones(size(test));
             testsM = tests + ones(size(test),'single');
             testCase.assertEqual(issparse(testM),issparse(testsM)); %Equal behavior
             testCase.verifySize(testsM,size(testM));
             testCase.verifyTrue(all(testM - testsM < testCase.relTolerance*testM,'all'));
-            
+
             testsM = ones(size(test),'single') + tests;
             testCase.assertEqual(issparse(testM),issparse(testsM)); %Equal behavior
             testCase.verifySize(testsM,size(testM));
@@ -157,22 +157,22 @@ classdef SparseSingleTest < matlab.unittest.TestCase
 
         function test_minus(testCase)
             test = sprand(5,10,0.25);
-            tests = SparseSingle(test); 
-            
+            tests = SparseSingle(test);
+
             %Scalar Addition
             test5 = test - 5;
             tests5 = tests - 5;
             testCase.assertEqual(issparse(test5),issparse(tests5)); %Equal behavior
             testCase.verifySize(tests5,size(test5));
-            testCase.verifyTrue(all(abs(test5 - tests5) <= abs(testCase.relTolerance*test5),'all'));            
+            testCase.verifyTrue(all(abs(test5 - tests5) <= abs(testCase.relTolerance*test5),'all'));
 
             tests5 = 5 - tests;
             test5 = 5 - test;
             testCase.assertEqual(issparse(test5),issparse(tests5)); %Equal behavior
             testCase.verifySize(tests5,size(test5));
             testCase.verifyTrue(all(abs(test5 - tests5) <= abs(testCase.relTolerance*test5),'all'));
-            
-            
+
+
             %Matrix addition
             testM = test - ones(size(test));
             testsM = tests - ones(size(test),'single');
@@ -180,14 +180,14 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.verifySize(testsM,size(testM));
             compare = abs(testM - testsM) <= abs(testCase.relTolerance*testM);
             testCase.verifyTrue(all(compare,'all'));
-            
+
             testM = ones(size(test)) - test;
             testsM = ones(size(test),'single') - tests;
             testCase.assertEqual(issparse(testM),issparse(testsM)); %Equal behavior
             testCase.verifySize(testsM,size(testM));
             compare = abs(testM - testsM) <= abs(testCase.relTolerance*testM);
             testCase.verifyTrue(all(compare,'all'));
-            
+
             %Sparse sparse
             testsM = tests - tests;
             testM = test - test;
@@ -203,28 +203,28 @@ classdef SparseSingleTest < matlab.unittest.TestCase
 
         function test_times(testCase)
             test = sprand(5,10,0.25);
-            tests = SparseSingle(test); 
-            
+            tests = SparseSingle(test);
+
             %Scalar Addition
             test5 = test .* 5;
             tests5 = tests .* 5;
             testCase.assertEqual(issparse(test5),issparse(tests5)); %Equal behavior
             testCase.verifySize(tests5,size(test5));
-            testCase.verifyTrue(all(abs(full(test5) - full(tests5)) <= abs(testCase.relTolerance*full(test5)),'all'));     
+            testCase.verifyTrue(all(abs(full(test5) - full(tests5)) <= abs(testCase.relTolerance*full(test5)),'all'));
 
             tests5 = 5 .* tests;
             testCase.assertEqual(issparse(test5),issparse(tests5)); %Equal behavior
             testCase.verifySize(tests5,size(test5));
-            testCase.verifyTrue(all(abs(full(test5) - full(tests5)) <= abs(testCase.relTolerance*full(test5)),'all'));     
-            
-            
+            testCase.verifyTrue(all(abs(full(test5) - full(tests5)) <= abs(testCase.relTolerance*full(test5)),'all'));
+
+
             %Matrix addition
             testM = test .* ones(size(test));
             testsM = tests .* ones(size(test),'single');
             testCase.assertEqual(issparse(testM),issparse(testsM)); %Equal behavior
             testCase.verifySize(testsM,size(testM));
             testCase.verifyTrue(all(abs(full(testM) - full(testsM)) <= abs(testCase.relTolerance*full(testM)),'all'));
-            
+
             testsM = ones(size(test),'single') .* tests;
             testCase.assertEqual(issparse(testM),issparse(testsM)); %Equal behavior
             testCase.verifySize(testsM,size(testM));
@@ -245,28 +245,28 @@ classdef SparseSingleTest < matlab.unittest.TestCase
 
         function test_rdivide(testCase)
             test = sprand(5,10,0.25);
-            tests = SparseSingle(test); 
-            
+            tests = SparseSingle(test);
+
             %Scalar Addition
             test5 = test ./ 5;
             tests5 = tests ./ 5;
             testCase.assertEqual(issparse(test5),issparse(tests5)); %Equal behavior
             testCase.verifySize(tests5,size(test5));
-            testCase.verifyTrue(all(abs(full(test5) - full(tests5)) <= abs(testCase.relTolerance*full(test5)),'all'));     
+            testCase.verifyTrue(all(abs(full(test5) - full(tests5)) <= abs(testCase.relTolerance*full(test5)),'all'));
 
             tests5 = 5 ./ tests;
             testCase.assertEqual(issparse(test5),issparse(tests5)); %Equal behavior
             testCase.verifySize(tests5,size(test5));
-            testCase.verifyTrue(all(abs(full(test5) - full(tests5)) <= abs(testCase.relTolerance*full(test5)),'all'));     
-            
-            
+            testCase.verifyTrue(all(abs(full(test5) - full(tests5)) <= abs(testCase.relTolerance*full(test5)),'all'));
+
+
             %Matrix addition
             testM = test ./ ones(size(test));
             testsM = tests ./ ones(size(test),'single');
             testCase.assertEqual(issparse(testM),issparse(testsM)); %Equal behavior
             testCase.verifySize(testsM,size(testM));
             testCase.verifyTrue(all(abs(full(testM) - full(testsM)) <= abs(testCase.relTolerance*full(testM)),'all'));
-            
+
             testsM = ones(size(test),'single') .* tests;
             testCase.assertEqual(issparse(testM),issparse(testsM)); %Equal behavior
             testCase.verifySize(testsM,size(testM));
@@ -287,28 +287,28 @@ classdef SparseSingleTest < matlab.unittest.TestCase
 
         function test_ldivide(testCase)
             test = sprand(5,10,0.25);
-            tests = SparseSingle(test); 
-            
+            tests = SparseSingle(test);
+
             %Scalar Addition
             test5 = test .\ 5;
             tests5 = tests .\ 5;
             testCase.assertEqual(issparse(test5),issparse(tests5)); %Equal behavior
             testCase.verifySize(tests5,size(test5));
-            testCase.verifyTrue(all(abs(full(test5) - full(tests5)) <= abs(testCase.relTolerance*full(test5)),'all'));     
+            testCase.verifyTrue(all(abs(full(test5) - full(tests5)) <= abs(testCase.relTolerance*full(test5)),'all'));
 
             tests5 = 5 .\ tests;
             testCase.assertEqual(issparse(test5),issparse(tests5)); %Equal behavior
             testCase.verifySize(tests5,size(test5));
-            testCase.verifyTrue(all(abs(full(test5) - full(tests5)) <= abs(testCase.relTolerance*full(test5)),'all'));     
-            
-            
+            testCase.verifyTrue(all(abs(full(test5) - full(tests5)) <= abs(testCase.relTolerance*full(test5)),'all'));
+
+
             %Matrix addition
             testM = test .\ ones(size(test));
             testsM = tests .\ ones(size(test),'single');
             testCase.assertEqual(issparse(testM),issparse(testsM)); %Equal behavior
             testCase.verifySize(testsM,size(testM));
             testCase.verifyTrue(all(abs(full(testM) - full(testsM)) <= abs(testCase.relTolerance*full(testM)),'all'));
-            
+
             testsM = ones(size(test),'single') .* tests;
             testCase.assertEqual(issparse(testM),issparse(testsM)); %Equal behavior
             testCase.verifySize(testsM,size(testM));
@@ -326,14 +326,14 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.verifyError(@() ones(3) + tests,'sparseSingle:wrongDataType');
             testCase.verifyError(@() tests + ones(3),'sparseSingle:wrongDataType');
         end
-            
+
         function test_uminus(testCase)
             test = sprand(10,10,0.1);
             tests = -SparseSingle(test);
-            
+
             testCase.assertEqual(nnz(test),nnz(tests));
             testCase.assertSize(tests,size(tests));
-            testCase.verifyTrue(all(abs(full(tests) + full(test)) <= abs(testCase.relTolerance*full(test)),'all'));            
+            testCase.verifyTrue(all(abs(full(tests) + full(test)) <= abs(testCase.relTolerance*full(test)),'all'));
         end
 
         function test_mtimes_Ax(testCase)
@@ -384,6 +384,38 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.verifyTrue(norm(prod1 - prod2) < testCase.relTolerance);
         end
 
+        function test_mtimes_selftransposed(testCase)
+            test = sprand(10,15,0.1);
+            tests = SparseSingle(test);
+
+            %sparse product
+            val = test*test';
+            vals = tests*tests';
+
+            testCase.verifySize(vals,size(val));
+            testCase.verifyEqual(issparse(val),issparse(vals));
+            testCase.verifyEqual(nnz(val),nnz(vals));
+            testCase.verifyTrue(all(abs(full(vals) - full(val)) <= abs(testCase.relTolerance*full(val)),'all'));
+
+            %sparse x dense product
+            val = test*full(test');
+            vals = tests*full(tests');
+
+            testCase.verifySize(vals,size(val));
+            testCase.verifyEqual(issparse(val),issparse(vals));
+            testCase.verifyTrue(all(abs(full(vals) - full(val)) <= abs(testCase.relTolerance*full(val)),'all'));
+
+            %dense x sparse product
+            val = full(test)*test';
+            vals = full(tests)*tests';
+
+            testCase.verifySize(vals,size(val));
+            testCase.verifyEqual(issparse(val),issparse(vals));
+            testCase.verifyTrue(all(abs(full(vals) - full(val)) <= abs(testCase.relTolerance*full(val)),'all'));
+        end
+
+
+
         function test_transposed(testCase)
             test = sparse([0 2 0; 1 0 0]);
             tests = SparseSingle(test);
@@ -392,7 +424,7 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             prod1 = tests*[1;1;1];
             prod2 = tests_t'*[1;1;1];
 
-            testCase.verifySize(tests_t,fliplr(size(tests))); 
+            testCase.verifySize(tests_t,fliplr(size(tests)));
             testCase.verifyTrue(norm(prod1 - prod2) < testCase.relTolerance);
         end
 
@@ -401,20 +433,20 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             tests = SparseSingle(test);
             test_t = transpose(test);
             tests_t = transpose(tests);
-            
+
             result = 2*test;
             result_t = 2*test_t;
             result_s = 2*tests;
             result_t_s = 2*tests_t;
 
             testCase.verifySize(result_s,size(result));
-            testCase.verifySize(result_t_s,size(result_t));             
+            testCase.verifySize(result_t_s,size(result_t));
         end
 
         function test_subsref_blocks(testCase)
             test = sprand(10,10,0.1);
             tests = SparseSingle(test);
-            
+
             block{1} = test(:,:);
             blocks{1} = tests(:,:);
 
@@ -438,7 +470,7 @@ classdef SparseSingleTest < matlab.unittest.TestCase
 
             block{6} = test(2:7,3);
             blocks{6} = tests(2:7,3);
-            
+
             for i = 1:numel(block)
                 testCase.verifySize(blocks{i},size(block{i}));
                 testCase.verifyEqual(nnz(blocks{i}),nnz(block{i}));
@@ -448,7 +480,7 @@ classdef SparseSingleTest < matlab.unittest.TestCase
         function test_subsref_slicing(testCase)
             test = sprand(10,10,0.1);
             tests = SparseSingle(test);
-            
+
             slice{1} = test([2 6],:);
             slices{1} = tests([2 6],:);
 
@@ -463,7 +495,7 @@ classdef SparseSingleTest < matlab.unittest.TestCase
 
             slice{5} = test([2 6],[2 7 4]);
             slices{5} = tests([2 6],[2 7 4]);
-            
+
             for i = 1:numel(slice)
                 testCase.verifySize(slices{i},size(slice{i}));
                 testCase.verifyEqual(nnz(slices{i}),nnz(slice{i}));
@@ -475,16 +507,44 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             tests = SparseSingle(test);
             test_t = transpose(test);
             tests_t = transpose(tests);
-            
+
             ixVecD = test(:);
             ixVecS = tests(:);
             ixVecDT = test_t(:);
             ixVecST = tests_t(:);
 
             testCase.verifySize(ixVecS,size(ixVecD));
-            testCase.verifySize(ixVecST,size(ixVecDT)); 
+            testCase.verifySize(ixVecST,size(ixVecDT));
             testCase.verifyTrue(all((full(ixVecD) - full(ixVecS)) < testCase.relTolerance));
             testCase.verifyTrue(all((full(ixVecDT) - full(ixVecST)) < testCase.relTolerance));
+        end
+
+        function test_mldivide(testCase)
+            test = sparse(magic(5));
+            b = full(sum(test,2));
+
+            tests = SparseSingle(test);
+
+            x = test\b;
+            xs = tests\b;
+            testCase.verifySize(xs,size(x));
+            testCase.verifyClass(xs,'single');
+            testCase.verifyTrue(all(abs(x) - abs(xs) <= abs(testCase.relTolerance*xs),'all'));
+            xs2 = tests\single(b);
+            testCase.verifyEqual(xs,xs2);
+
+            x = test(1:4,:)\b(1:4);
+            xs = tests(1:4,:)\b(1:4);
+            testCase.verifySize(xs,size(x));
+            testCase.verifyClass(xs,'single');
+            %testCase.verifyTrue(all(abs(x) - abs(xs) <= abs(testCase.relTolerance*xs),'all'));
+
+            x = test\test;
+            xs = tests\tests;
+
+            testCase.verifyEqual(issparse(x),issparse(xs));
+            testCase.verifySize(xs,size(x));
+
         end
     end
 

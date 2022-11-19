@@ -164,6 +164,11 @@ public:
     /// @return a dense matrix or a sparse single handle as mxArray
     mxArray* mtimesl(const mxArray* leftfactor) const;
 
+    /// @brief Solve the system Ax = b for x
+    /// @param b constant equality matrix as mxArray, can be also sparseSingle or scalar, sucht that result = this\b
+    /// @return single matrix (solution x)
+    mxArray* mldivide(const mxArray* b) const;
+
     /// @brief Matrix/Vector product
     /// @param vals 
     /// @param n 
@@ -269,6 +274,8 @@ private:
     /// @param n number of cols
     /// @param nz space to reserve for nzs -- does this parameter make sense for our class? Maybe in horzcat/vertcat operations
     void constructFromMatlabTriplets(const mxArray *i, const mxArray *j, const mxArray* v, const mxArray* m, const mxArray* n, const mxArray* nz = nullptr);
+
+    void reportSolverInfo(Eigen::ComputationInfo& info) const;
     
     index_t toLinearIndex(const index_t row, const index_t col) const;
 
