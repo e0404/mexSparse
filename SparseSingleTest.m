@@ -545,6 +545,58 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.verifyEqual(issparse(x),issparse(xs));
             testCase.verifySize(xs,size(x));
 
+            %Transpose
+            x = test'\b;
+            xs = tests'\b;
+            testCase.verifySize(xs,size(x));
+            testCase.verifyClass(xs,'single');            
+            testCase.verifyTrue(all(abs(x) - abs(xs) <= abs(testCase.relTolerance*xs),'all'));
+
+            x = test\test';
+            xs = tests\tests';
+            testCase.verifySize(xs,size(x));
+            testCase.verifyEqual(issparse(x),issparse(xs));
+
+        end
+
+        function test_mrdivide(testCase)
+            test = sparse(magic(5));
+            b = full(sum(test,1));
+
+            tests = SparseSingle(test);
+
+            x = b/test;
+            xs = b/tests;
+            testCase.verifySize(xs,size(x));
+            testCase.verifyClass(xs,'single');
+            testCase.verifyTrue(all(abs(x) - abs(xs) <= abs(testCase.relTolerance*xs),'all'));
+            xs2 = single(b)/tests;
+            testCase.verifyEqual(xs,xs2);
+
+            x = b(1:4)/test(:,1:4);
+            xs = b(1:4)/tests(:,1:4);
+            testCase.verifySize(xs,size(x));
+            testCase.verifyClass(xs,'single');
+            %testCase.verifyTrue(all(abs(x) - abs(xs) <= abs(testCase.relTolerance*xs),'all'));
+
+            x = test/test;
+            xs = tests/tests;
+
+            testCase.verifyEqual(issparse(x),issparse(xs));
+            testCase.verifySize(xs,size(x));
+
+             %Transpose
+            x = b/test';
+            xs = b/tests';
+            testCase.verifySize(xs,size(x));
+            testCase.verifyClass(xs,'single');            
+            testCase.verifyTrue(all(abs(x) - abs(xs) <= abs(testCase.relTolerance*xs),'all'));
+
+            x = test/test';
+            xs = tests/tests';
+            testCase.verifySize(xs,size(x));
+            testCase.verifyEqual(issparse(x),issparse(xs));
+
         end
     end
 

@@ -144,8 +144,9 @@ classdef SparseSingle
             end
         end
 
-        function ret = mrdivide(A,B)            
-            error('sparseSingle:missingImplementation','rdivide not yet implemented!');
+        function ret = mrdivide(B,A)
+            %The mrdivide function curently only wraps mldivide            
+            ret = transpose(mldivide(A',B'));
         end
 
         function ret = find(this)            
