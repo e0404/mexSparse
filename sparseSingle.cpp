@@ -309,7 +309,7 @@ void sparseSingle::reportSolverInfo(Eigen::ComputationInfo& info) const
 
 //// Indexing ////
  
-sparseSingle* sparseSingle::rowColIndexing(const mxArray * const rowIndex, const mxArray * const colIndex) const
+mxArray* sparseSingle::rowColIndexing(const mxArray * const rowIndex, const mxArray * const colIndex) const
 {
     //TODO: Transpose Implementation
     
@@ -409,8 +409,8 @@ sparseSingle* sparseSingle::rowColIndexing(const mxArray * const rowIndex, const
             indexedSubMatrix = new sparseSingle(subSpMat); 
         }
     }
-
-    return indexedSubMatrix; 
+    
+    return convertPtr2Mat<sparseSingle>(indexedSubMatrix); 
 }
 
 sparseSingle* sparseSingle::rowColAssignment(const mxArray * const rowIndex, const mxArray * const colIndex, const mxArray* assignedValues)
@@ -539,7 +539,7 @@ void sparseSingle::disp() const
     }
 }
 
-sparseSingle* sparseSingle::linearIndexing(const mxArray* indexList) const 
+mxArray* sparseSingle::linearIndexing(const mxArray* indexList) const 
 {
     //First check if it is indeed an index list or a colon operator
     mxClassID ixType = mxGetClassID(indexList);
@@ -744,7 +744,7 @@ sparseSingle* sparseSingle::linearIndexing(const mxArray* indexList) const
         throw(MexException("sparseSingle:invalidIndex","Unsupported index type!"));
     }
 
-    return result;
+    return convertPtr2Mat<sparseSingle>(result);
 
 }
 
@@ -1565,12 +1565,14 @@ mxArray* sparseSingle::mldivide(const mxArray* b) const
     return resultMatrix;
 }
 
-sparseSingle* sparseSingle::transpose() const {
+mxArray* sparseSingle::transpose() const 
+{
     sparseSingle* transposedCopy = new sparseSingle();
     transposedCopy->transposed = !this->transposed;
     transposedCopy->eigSpMatrix = this->eigSpMatrix;
     //this->transposed = !this->transposed;
-    return transposedCopy;
+
+    return convertPtr2Mat<sparseSingle>(transposedCopy);    
 }
 
 mxArray* sparseSingle::timesVec(const mxArray* vals_) const 
@@ -1694,7 +1696,7 @@ mxArray* sparseSingle::vecTimes(const mxArray* vals_) const
     return result;
 }
 
-sparseSingle* sparseSingle::timesScalar(const mxArray* val_) const
+mxArray* sparseSingle::timesScalar(const mxArray* val_) const
 {
     if (!mxIsScalar(val_))
         throw(MexException("sparseSingle:mexInterface:invalidMexCall:timesScalar","Input needs to be scalar!"));
@@ -1711,5 +1713,5 @@ sparseSingle* sparseSingle::timesScalar(const mxArray* val_) const
     sparseSingle* scaledMatrix = new sparseSingle(scaledSpMat);
     scaledMatrix->transposed = this->transposed;
 
-    return scaledMatrix;
+    return convertPtr2Mat<sparseSingle>(scaledMatrix);    
 }
