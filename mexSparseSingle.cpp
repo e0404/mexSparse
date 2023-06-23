@@ -457,6 +457,27 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         }
         return;
     }
+
+    //Assignments
+    if (cmd == "subsasgnRowCol")
+    {
+        if (nlhs < 0 || nlhs > 1 || nrhs != 5)
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:subsasgnRowCol","Unexpected Number of arguments!");
+        try {
+            //mxArray* result = sparseSingle_instance->linearIndexing(prhs[2]);
+            
+            plhs[0] = sparseSingle_instance->rowColAssignment(prhs[2],prhs[3],prhs[4]);            
+        }
+        catch (const MexException& e)
+        {
+            mexErrMsgIdAndTxt(e.id(), e.what());            
+        }
+        catch(...)
+        {
+            mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:subsasgnRowCol","Indexing failed for unknown reason!");
+        }
+        return;
+    }
     
 
     // Delete

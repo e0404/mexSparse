@@ -52,6 +52,16 @@ public:
         ELEMENTWISE_MINUS_L
     };
 
+    enum ElementWiseComparison
+    {
+        ELEMENTWISE_EQUAL,
+        ELEMENTWISE_NOT_EQUAL,
+        ELEMENTWISE_GREATER_EQUAL,
+        ELEMENTWISE_GREATER,
+        ELEMENTWISE_LOWER_EQUAL,
+        ELEMENTWISE_LOWER
+    };
+
     //// Functions ////
 
     /// @brief construct an empty sparse matrix
@@ -198,7 +208,7 @@ public:
     /// @brief Row / Column Index assignment
     /// @param rowIndex 
     /// @param colIndex 
-    sparseSingle* rowColAssignment(const mxArray * const rowIndex, const mxArray * const colIndex, const mxArray* assignedValues);                 
+    mxArray* rowColAssignment(const mxArray * const rowIndex, const mxArray * const colIndex, const mxArray* assignedValues);                 
     
     /// @brief Index with a linear index list
     /// @param indexList
@@ -284,6 +294,8 @@ private:
     index_t linearIndexToRowIndex(const index_t linIx) const;
 
     mxArray* elementWiseBinaryOperation(const mxArray* operand, const ElementWiseOperation& op) const;
+
+    mxArray* elementWiseComparison(const mxArray* operand, const ElementWiseComparison& op) const;
 
     template<typename T>
     bool isConsecutiveArray(const T * const array, const index_t n) const

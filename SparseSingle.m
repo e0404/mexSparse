@@ -197,47 +197,6 @@ classdef SparseSingle
                 if isscalar(A)              
                     ret = SparseSingle(ret);
                 end
-            %{
-            elseif isrow(A) && isa(B, 'SparseSingle')
-
-                if ~isnumeric(A)
-                    error('First Input (arg1) must be numeric');
-                end
-
-                if ~isa(A, 'single')
-                    A = single(A);
-                end
-                
-                if isscalar(A)
-                    ret = SparseSingle(mexSparseSingle('timesScalar',B.objectHandle,A));
-                elseif numel(A) == B.nRows
-                    ret = mexSparseSingle('vecTimes',B.objectHandle,A);
-                else
-                    error('Invalid Dimensions for multiplication!');
-                end
-
-                % matrix * vector
-            elseif isa(A, 'SparseSingle') && iscolumn(B)
-
-                if ~isnumeric(B)
-                    error('Second Input (arg2) must be numeric');
-                end
-
-                if ~isa(B, 'single')
-                    B = single(B);
-                end
-
-                if isscalar(B)
-                    ret = SparseSingle(mexSparseSingle('timesScalar',A.objectHandle,B));
-                elseif numel(B) == A.nCols
-                    ret = mexSparseSingle('timesVec',A.objectHandle,B);
-                else
-                    error('Invalid Dimensions for multiplication!');
-                end
-
-            elseif ismatrix(A) && ismatrix(B)
-                error('Matrix Matrix product not implemented');
-            %}
             else
                 error('mtimes for inputs %s & %s not supported', class(A),class(B));
             end
@@ -308,6 +267,69 @@ classdef SparseSingle
 
                             subMatrixHandle = mexSparseSingle('subsrefRowCol',this.objectHandle,s.subs{1},s.subs{2});
                             values = SparseSingle(subMatrixHandle);
+                        else
+                            error('Requested Indexing Pattern is not supported!');
+                        end
+                        
+                    elseif length(s) >= 2 && strcmp(s(2).type,'.')
+                        error('Dot indexing not supported for SparseSingle!');
+                    else
+                        error('Requested indexing pattern not supported!');
+                    end
+                case '.'
+                    values = builtin('subsref',this,s);
+                case '{}'
+                    error('{} indexing not supported for SparseSingle!');
+                otherwise
+                    error('Not a valid indexing expression');
+            end
+        end
+
+        function this = subsasgn(this,s,ix)
+            switch s(1).type
+                case '()'
+                    if length(s) == 1
+                        nSubs = length(s.subs);
+
+                        %Linear Indexing
+                        if nSubs == 1
+                            error('Linear Index Assignment not implemented!');
+                            subMatrixHandle = mexSparseSingle('linearIndexAssign',this.objectHandle,s.subs{1});
+                            this = SparseSingle(subMatrixHandle);
+
+                        %Submatrix indexing
+                        elseif nSubs == 2
+                            %error('subscript assignment not implemented!');
+                            %Workaround for Colon at the moment
+                            if isequal(s.subs{1},':')
+                                warning('Row Colon indexing not efficient at the moment!');
+                                s.subs{1} = 1:this.nRows;
+                            end
+
+                            if isequal(s.subs{2},':')
+                                warning('Column Colon indexing not efficient at the moment!');
+                                s.subs{2} = 1:this.nCols;
+                            end
+
+                            % Workaround for Logical indexing at the moment
+
+                            if islogical(s.subs{1})
+                                if ~isvector(s.subs{1}) || numel(s.subs{1}) ~= this.nRows
+                                    error('Wrong index dimension: Number of elements must be the same!');
+                                end
+                                warning('Logical indexing not efficient at the moment and will be converted to an index list!');
+                                s.subs{1} = find(s.subs{1});
+                            end
+
+                            if islogical(s.subs{2})
+                                if ~isvector(s.subs{2}) || numel(s.subs{1}) ~= this.nCols
+                                    error('Wrong index dimension: Number of elements must be the same!');
+                                end
+                                warning('Logical indexing not efficient at the moment and will be converted to an index list!');
+                                s.subs{2} = find(s.subs{2});
+                            end
+
+                            this = SparseSingle(mexSparseSingle('subsasgnRowCol',this.objectHandle,s.subs{1},s.subs{2},ix));
                         else
                             error('Requested Indexing Pattern is not supported!');
                         end
