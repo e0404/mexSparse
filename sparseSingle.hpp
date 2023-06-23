@@ -109,7 +109,7 @@ public:
 
     /// @brief Transposes the matrix by setting a transpose flag
     /// @return Pointer to transposed single sparse matrix. Will only hold a shared copy under the hood
-    sparseSingle* transpose() const;
+    mxArray* transpose() const;
 
     /// @brief Transposes the matrix by setting a transpose flag
     /// @return Pointer to transposed single sparse matrix. Will only hold a shared copy under the hood
@@ -194,7 +194,7 @@ public:
     /// @brief Multiplication with Scalar
     /// @param scalar
     /// @return scaled sparse single matrix
-    sparseSingle* timesScalar(const mxArray* val) const;
+    mxArray* timesScalar(const mxArray* val) const;
 
     //// Indexing ////
 
@@ -203,7 +203,7 @@ public:
     /// @param colIndex 
     /// @return Pointer to sparse Single submatrix
     /// @todo This can be very slow. Better alternatives for slicing?
-    sparseSingle* rowColIndexing(const mxArray * const rowIndex, const mxArray * const colIndex) const;  
+    mxArray* rowColIndexing(const mxArray * const rowIndex, const mxArray * const colIndex) const;  
 
     /// @brief Row / Column Index assignment
     /// @param rowIndex 
@@ -214,13 +214,8 @@ public:
     /// @param indexList
     /// @return Pointer to sparse Single submatrix (will have a vector dimension)
     /// @todo Not fully implemented yet
-    sparseSingle* linearIndexing(const mxArray* indexList) const;    
-
-    /// @brief Return all values (when called from Maltab as A(:)) by just restructuring the matrix
-    /// @return Pointer to sparseSingle (n*M)x1 matrix
-    /// @todo Maybe we could also make a version that shares the data memory when read-only
-    sparseSingle* allValues() const;
-
+    mxArray* linearIndexing(const mxArray* indexList) const;    
+    
     /// @brief return all nonzero values
     /// @return Pointer to column array of linear indices
     mxArray* find() const;
@@ -244,6 +239,11 @@ private:
     /// @brief copy constructor sharing matrix storage
     /// @param eigSpMatrix_ 
     sparseSingle(sparseSingle& shared_copy);
+
+    /// @brief Return all values (when called from Maltab as A(:)) by just restructuring the matrix
+    /// @return Pointer to sparseSingle (n*M)x1 matrix
+    /// @todo Maybe we could also make a version that shares the data memory when read-only
+    sparseSingle* allValues() const;
 
     /*
     template<typename T>    

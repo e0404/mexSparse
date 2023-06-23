@@ -119,8 +119,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (nlhs < 0 || nlhs > 1)
             mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:full","Unexpected Number of arguments!");
         try {
-            mxArray* result = sparseSingle_instance->full();
-            plhs[0] = result;       
+            plhs[0] = sparseSingle_instance->full();                    
         }
         catch (const MexException& e)
         {
@@ -138,8 +137,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (nlhs < 0 || nlhs > 1 || nrhs != 3)
             mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:add","Unexpected Number of arguments!");
         try {           
-            mxArray* result = sparseSingle_instance->plus(prhs[2]);
-            plhs[0] = result;
+            plhs[0] = sparseSingle_instance->plus(prhs[2]);            
         }
         catch (const MexException& e)
         {
@@ -157,8 +155,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (nlhs < 0 || nlhs > 1 || nrhs != 3)
             mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:minusAsMinuend","Unexpected Number of arguments!");
         try {           
-            mxArray* result = sparseSingle_instance->minusAsMinuend(prhs[2]);
-            plhs[0] = result;
+            plhs[0] = sparseSingle_instance->minusAsMinuend(prhs[2]);            
         }
         catch (const MexException& e)
         {
@@ -176,8 +173,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (nlhs < 0 || nlhs > 1 || nrhs != 3)
             mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:minusAsSubtrahend","Unexpected Number of arguments!");
         try {           
-            mxArray* result = sparseSingle_instance->minusAsSubtrahend(prhs[2]);
-            plhs[0] = result;
+            plhs[0] = sparseSingle_instance->minusAsSubtrahend(prhs[2]);
         }
         catch (const MexException& e)
         {
@@ -195,8 +191,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (nlhs < 0 || nlhs > 1 || nrhs != 3)
             mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:rdivide","Unexpected Number of arguments!");
         try {           
-            mxArray* result = sparseSingle_instance->rdivide(prhs[2]);
-            plhs[0] = result;
+            plhs[0] = sparseSingle_instance->rdivide(prhs[2]);
         }
         catch (const MexException& e)
         {
@@ -214,8 +209,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (nlhs < 0 || nlhs > 1 || nrhs != 3)
             mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:ldivide","Unexpected Number of arguments!");
         try {           
-            mxArray* result = sparseSingle_instance->ldivide(prhs[2]);
-            plhs[0] = result;
+            plhs[0] = sparseSingle_instance->ldivide(prhs[2]);
         }
         catch (const MexException& e)
         {
@@ -233,8 +227,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (nlhs < 0 || nlhs > 1 || nrhs != 3)
             mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:times","Unexpected Number of arguments!");
         try {           
-            mxArray* result = sparseSingle_instance->times(prhs[2]);
-            plhs[0] = result;
+            plhs[0] = sparseSingle_instance->times(prhs[2]);
         }
         catch (const MexException& e)
         {
@@ -252,8 +245,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (nlhs < 0 || nlhs > 1 || nrhs != 3)
             mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:mtimesr","Unexpected Number of arguments!");
         try {           
-            mxArray* result = sparseSingle_instance->mtimesr(prhs[2]);
-            plhs[0] = result;
+            plhs[0] = sparseSingle_instance->mtimesr(prhs[2]);
         }
         catch (const MexException& e)
         {
@@ -271,8 +263,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (nlhs < 0 || nlhs > 1 || nrhs != 3)
             mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:mtimesl","Unexpected Number of arguments!");
         try {           
-            mxArray* result = sparseSingle_instance->mtimesl(prhs[2]);
-            plhs[0] = result;
+            plhs[0] = sparseSingle_instance->mtimesl(prhs[2]);
         }
         catch (const MexException& e)
         {
@@ -290,8 +281,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (nlhs < 0 || nlhs > 1 || nrhs != 3)
             mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:mldivide","Unexpected Number of arguments!");
         try {           
-            mxArray* result = sparseSingle_instance->mldivide(prhs[2]);
-            plhs[0] = result;
+            plhs[0] = sparseSingle_instance->mldivide(prhs[2]);
         }
         catch (const MexException& e)
         {
@@ -345,8 +335,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (nlhs < 0 || nlhs > 1)
             mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:timesScalar","Unexpected Number of arguments!");
         try {
-            sparseSingle* result = sparseSingle_instance->timesScalar(prhs[2]);
-            plhs[0] = convertPtr2Mat<sparseSingle>(result);
+            plhs[0] = sparseSingle_instance->timesScalar(prhs[2]);
         }
         catch (const MexException& e)
         {
@@ -382,7 +371,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         if (nlhs < 0 || nlhs > 1 || nrhs > 2)
             mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:transpose","Unexpected Number of arguments!");
         try {
-            plhs[0] = convertPtr2Mat<sparseSingle>(sparseSingle_instance->transpose());
+            plhs[0] = sparseSingle_instance->transpose();
         }
         catch (const MexException& e)
         {
@@ -402,8 +391,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
         try {
             //mxArray* result = sparseSingle_instance->linearIndexing(prhs[2]);
             
-            sparseSingle* result = sparseSingle_instance->rowColIndexing(prhs[2],prhs[3]);
-            plhs[0] = convertPtr2Mat<sparseSingle>(result);
+            plhs[0] = sparseSingle_instance->rowColIndexing(prhs[2],prhs[3]);
         }
         catch (const MexException& e)
         {
@@ -423,9 +411,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
             mexErrMsgIdAndTxt("sparseSingle:mexInterface:invalidMexCall:linearIndexing","Unexpected Number of arguments!");
 
         try {
-            sparseSingle* result = sparseSingle_instance->linearIndexing(prhs[2]);
-            //result = sparseSingle_instance->allValues()
-            plhs[0] = convertPtr2Mat<sparseSingle>(result);
+            plhs[0] = sparseSingle_instance->linearIndexing(prhs[2]);
         }
         catch (const MexException& e)
         {
