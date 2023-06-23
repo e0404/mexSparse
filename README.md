@@ -2,7 +2,9 @@ Single Precision Sparse Matrix class implementation interfacing the Eigen3 C++ T
 Developed at the German Cancer Research Center (DKFZ) by Jeremias Kunz & Niklas Wahl (Department of Medical Physics in Radiation Oncology, Group Radiotherapy Optimization)
 
 # General Information
-This "SparseSingle" implementation is mainly built for matRad (https://github.com/e0404/matRad) to save memory / speed-up optimization for radiotherapy. It is thus very limited in functionality, but can maybe help other developers to get started.
+This "SparseSingle" implementation using Matlab's mex interface is mainly built for matRad (https://github.com/e0404/matRad) to save memory / speed-up optimization for radiotherapy. It is thus very limited in functionality, but can maybe help other developers to get started.
+
+The project is supported by Mathworks as part of their Community Toolbox Support Program.
 
 ## CPU Implementation
 The CPU implementation contains mainly basic linear algebra operations, particularly A\*x and A'\*x. 
