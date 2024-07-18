@@ -3,10 +3,10 @@
 
 #include "sparseEigen.hpp"
 
-typedef sparseEigen<int64_t,mxSingle> sparseSingle;
+typedef sparseEigen<int64_t,mxDouble> sparseDouble;
 
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {
-    mexSparseInterface<sparseSingle>(nlhs, plhs, nrhs, prhs);
+    mexSparseInterface<sparseDouble>(nlhs, plhs, nrhs, prhs);
 }
