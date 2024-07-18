@@ -66,7 +66,7 @@ public:
     using mxDoubleAsMatrix_t = mxAsMatrix_t<mxDouble>;
     using mxDoubleAsArray_t = mxAsArray_t<mxDouble>;
 
-    const mxClassID valueMxClassID = mxDataTypeToClassID_t<typename value_t>::value;
+    const mxClassID valueMxClassID = mxDataTypeToClassID_t<value_t>::value;
 
     enum CscParallelism 
     {

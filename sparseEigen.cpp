@@ -1,7 +1,19 @@
-#include <algorithm>
+// Check if TBB is available
+#ifdef __TBB_parallel_for_H
+#define EXECUTION_AVAILABLE 1
+#else
+#define EXECUTION_AVAILABLE 0
+#endif
+
+#if EXECUTION_AVAILABLE
 #include <execution>
+#else
+#include <algorithm>
+#endif
+
 #include <chrono>
 #include <array>
+#include <numeric>
 #include "class_handle.hpp"
 
 #include "sparseEigen.hpp"
@@ -218,7 +230,11 @@ void sparseEigen<index_t,value_t>::constructFromMatlabTriplets(const mxArray* i_
     //The data accessor is not yet in index base 0!!
     //We could use a linear index comparison or we define a double comparison
     //We sort by linear index
+#if EXECUTION_AVAILABLE
     std::stable_sort(std::execution::par,sortPattern.begin(),sortPattern.end(),
+#else
+    std::stable_sort(sortPattern.begin(),sortPattern.end(),
+#endif
         [&i,&j,&m](index_t i1, index_t i2) {
             return ((j[i1]-1)*m + i[i1] - 1) < ((j[i2]-1)*m + i[i2] - 1);
         });
@@ -543,8 +559,11 @@ sparseEigen<index_t,value_t>* sparseEigen<index_t,value_t>::allValues() const
     //Sanity Check
     if (!(this->eigSpMatrix->isCompressed()))
         throw(MexException("sparseEigen:invalidMatrixState","The matrix is not compressed! This is unexpected behavior!"));
-
+#if EXECUTION_AVAILABLE
     std::copy(std::execution::par_unseq,this->eigSpMatrix->valuePtr(),this->eigSpMatrix->valuePtr() + nnz, subSpMat->valuePtr());
+#else
+    std::copy(this->eigSpMatrix->valuePtr(),this->eigSpMatrix->valuePtr() + nnz, subSpMat->valuePtr());
+#endif
     subSpMat->outerIndexPtr()[0] = index_t(0);
     subSpMat->outerIndexPtr()[1] = nnz;
 
@@ -555,7 +574,7 @@ sparseEigen<index_t,value_t>* sparseEigen<index_t,value_t>::allValues() const
         index_t count = 0;
         //#pragma omp parallel for schedule(dynamic)
         for (index_t k = 0; k < crs_transposed.outerSize(); ++k)
-            for (Eigen::Map<spMatTransposed_t>::InnerIterator it(crs_transposed,k); it; ++it)
+            for (typename Eigen::Map<spMatTransposed_t>::InnerIterator it(crs_transposed,k); it; ++it)
             {
                 index_t linearIndex = this->toLinearIndex(it.row(),it.col());
                 subSpMat->innerIndexPtr()[count] = linearIndex;
@@ -570,7 +589,7 @@ sparseEigen<index_t,value_t>* sparseEigen<index_t,value_t>::allValues() const
             index_t offset = this->eigSpMatrix->outerIndexPtr()[k];
             index_t count = 0;
 
-            for (spMat_t::InnerIterator it(*this->eigSpMatrix,k); it; ++it)
+            for (typename spMat_t::InnerIterator it(*this->eigSpMatrix,k); it; ++it)
             {
                 index_t linearIndex = this->toLinearIndex(it.row(),it.col());
                 subSpMat->innerIndexPtr()[offset + count] = linearIndex;
@@ -596,7 +615,7 @@ mxArray* sparseEigen<index_t,value_t>::find() const
         Eigen::Map<spMatTransposed_t> crs_transposed(this->getRows(),this->getCols(),this->getNnz(),this->eigSpMatrix->outerIndexPtr(),this->eigSpMatrix->innerIndexPtr(),this->eigSpMatrix->valuePtr());
 
         for (index_t k = 0; k < crs_transposed.outerSize(); ++k)
-            for (Eigen::Map<spMatTransposed_t>::InnerIterator it(crs_transposed,k); it; ++it)
+            for (typename Eigen::Map<spMatTransposed_t>::InnerIterator it(crs_transposed,k); it; ++it)
             {
                 index_t currLinIx = this->toLinearIndex(it.row(),it.col());
                 findLinData[count] = double(currLinIx) + 1;
@@ -605,13 +624,16 @@ mxArray* sparseEigen<index_t,value_t>::find() const
 
         if (count != this->getNnz())
             throw(MexException("sparseEigen:find:invalidDataStructure","For some reason, we found more or less nonzeros than expected!"));
-
+        #if EXECUTION_AVAILABLE
         std::sort(std::execution::par_unseq,findLinData,findLinData + count);
+        #else
+        std::sort(findLinData,findLinData + count);
+        #endif
     }   
     else
     {
         for (index_t k = 0; k < this->eigSpMatrix->outerSize(); ++k)
-            for (spMat_t::InnerIterator it(*this->eigSpMatrix,k); it; ++it)
+            for (typename spMat_t::InnerIterator it(*this->eigSpMatrix,k); it; ++it)
             {
                 index_t currLinIx = this->toLinearIndex(it.row(),it.col());
                 findLinData[count] = double(currLinIx) + 1;
@@ -638,7 +660,7 @@ void sparseEigen<index_t,value_t>::disp() const
         Eigen::Map<spMatTransposed_t> crs_transposed(this->getRows(),this->getCols(),this->getNnz(),this->eigSpMatrix->outerIndexPtr(),this->eigSpMatrix->innerIndexPtr(),this->eigSpMatrix->valuePtr());
 
         for (index_t k = 0; k < crs_transposed.outerSize(); ++k)
-            for (Eigen::Map<spMatTransposed_t>::InnerIterator it(crs_transposed,k); it; ++it)
+            for (typename Eigen::Map<spMatTransposed_t>::InnerIterator it(crs_transposed,k); it; ++it)
             {
                 mexPrintf("\t(%d,%d)\t\t%g\n",it.row()+1,it.col()+1,it.value());
             }
@@ -646,7 +668,7 @@ void sparseEigen<index_t,value_t>::disp() const
     else
     {
         for (index_t k = 0; k < this->eigSpMatrix->outerSize(); ++k)
-            for (spMat_t::InnerIterator it(*this->eigSpMatrix,k); it; ++it)
+            for (typename spMat_t::InnerIterator it(*this->eigSpMatrix,k); it; ++it)
             {
                 mexPrintf("\t(%d,%d)\t\t%g\n",it.row()+1,it.col()+1,it.value());
             }
@@ -727,7 +749,7 @@ mxArray* sparseEigen<index_t,value_t>::linearIndexing(const mxArray* indexList) 
                 index_t count = 0;
                 //#pragma omp parallel for schedule(dynamic)
                 for (index_t k = 0; k < crs_transposed.outerSize(); ++k)
-                    for (Eigen::Map<spMatTransposed_t>::InnerIterator it(crs_transposed,k); it; ++it)
+                    for (typename Eigen::Map<spMatTransposed_t>::InnerIterator it(crs_transposed,k); it; ++it)
                     {
                         index_t linearIndex = this->toLinearIndex(it.row(),it.col());
                         tmpInnerIndex[count] = linearIndex;
@@ -742,7 +764,7 @@ mxArray* sparseEigen<index_t,value_t>::linearIndexing(const mxArray* indexList) 
                     index_t offset = this->eigSpMatrix->outerIndexPtr()[k];
                     index_t count = 0;
 
-                    for (spMat_t::InnerIterator it(*this->eigSpMatrix,k); it; ++it)
+                    for (typename spMat_t::InnerIterator it(*this->eigSpMatrix,k); it; ++it)
                     {
                         index_t linearIndex = this->toLinearIndex(it.row(),it.col());
                         tmpInnerIndex[offset + count] = linearIndex;
@@ -774,7 +796,11 @@ mxArray* sparseEigen<index_t,value_t>::linearIndexing(const mxArray* indexList) 
                 for (index_t i = 0; i < numValues; i++)
                     sortPattern[i] = i;
 
+                #if EXECUTION_AVAILABLE
                 std::stable_sort(std::execution::par,sortPattern.begin(),sortPattern.end(),[&indexList4Eigen](index_t i1, index_t i2) {return indexList4Eigen[i1] < indexList4Eigen[i2];});
+                #else
+                std::stable_sort(sortPattern.begin(),sortPattern.end(),[&indexList4Eigen](index_t i1, index_t i2) {return indexList4Eigen[i1] < indexList4Eigen[i2];});
+                #endif
                 
                 index_t searchIxSpVec = 0;
                 index_t searchInnerIndex;
@@ -2043,7 +2069,11 @@ mxArray* sparseEigen<index_t,value_t>::timesVec(const mxArray* vals_) const
                 if (!(this-eigSpMatrix->isCompressed()))
                     throw(MexException("sparseEigen:timesVec:notCompressed","Sparse Matrix is not compressed! This should not happen..."));
                 
+                #if EXECUTION_AVAILABLE
                 std::fill(std::execution::par_unseq,result_data,result_data + this->getRows(),0);
+                #else
+                std::fill(result_data,result_data + this->getRows(),0);
+                #endif
 
                 for (index_t j = 0; j < this->eigSpMatrix->outerSize(); ++j)
                 {                    
@@ -2065,8 +2095,11 @@ mxArray* sparseEigen<index_t,value_t>::timesVec(const mxArray* vals_) const
             case ACROSS_COLUMN:
                 if (!(this-eigSpMatrix->isCompressed()))
                     throw(MexException("sparseEigen:timesVec:notCompressed","Sparse Matrix is not compressed! This should not happen..."));
-
+                #if EXECUTION_AVAILABLE
                 std::fill(std::execution::par_unseq,result_data,result_data + this->getRows(),0);
+                #else
+                std::fill(result_data,result_data + this->getRows(),0);
+                #endif
 
                 #pragma omp parallel for schedule(dynamic)
                 for (index_t j = 0; j < this->eigSpMatrix->outerSize(); ++j)
