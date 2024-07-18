@@ -1,7 +1,7 @@
 classdef SparseSingleTest < matlab.unittest.TestCase
 
     properties (Constant)
-        relTolerance = 5*eps('single');
+        relTolerance = sqrt(eps('single'));
     end
 
     methods (Test)

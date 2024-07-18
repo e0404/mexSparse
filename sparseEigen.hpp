@@ -8,13 +8,42 @@
 #include <Eigen/Sparse>
 #include "class_handle.hpp"
 
+//Helpers to match types with classID
 template<mxClassID> struct mxClassToDataType_t;
 template<> struct mxClassToDataType_t<mxClassID::mxDOUBLE_CLASS> { using type = mxDouble; };
 template<> struct mxClassToDataType_t<mxClassID::mxSINGLE_CLASS> { using type = mxSingle; };
-
+template<> struct mxClassToDataType_t<mxClassID::mxLOGICAL_CLASS> { using type = mxLogical; };
 template<mxClassID T>
 using mxClassToDataType = typename mxClassToDataType_t<T>::type;
 
+template<typename T>
+struct mxDataTypeToClassID_t;
+template<> struct mxDataTypeToClassID_t<mxSingle> { static constexpr mxClassID value = mxClassID::mxSINGLE_CLASS; };
+template<> struct mxDataTypeToClassID_t<mxDouble> { static constexpr mxClassID value = mxClassID::mxDOUBLE_CLASS; };
+template<> struct mxDataTypeToClassID_t<mxLogical> { static constexpr mxClassID value = mxClassID::mxLOGICAL_CLASS; };
+
+//Helper to check if a type is a valid mxArray type
+
+template<typename T>
+bool mxIsValueType(const mxArray* const mx) 
+{
+    if (std::is_same<T, mxSingle>::value)
+    {
+        return mxIsSingle(mx);
+    }
+    else if (std::is_same<T, mxDouble>::value)
+    {
+        return mxIsDouble(mx);
+    }
+    else if (std::is_same<T, mxLogical>::value)
+    {
+        return mxIsLogical(mx);
+    }
+    else
+    {
+        return false;
+    }
+}
 
 template<typename index_t, typename value_t>
 class sparseEigen
@@ -29,11 +58,15 @@ public:
     template<typename mxType>
     using mxAsArray_t = Eigen::Array<mxType,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor>;
 
+    using mxValueAsMatrix_t = mxAsMatrix_t<value_t>;
+
     using mxSingleAsMatrix_t = mxAsMatrix_t<mxSingle>;
     using mxSingleAsArray_t = mxAsArray_t<mxSingle>;
 
     using mxDoubleAsMatrix_t = mxAsMatrix_t<mxDouble>;
     using mxDoubleAsArray_t = mxAsArray_t<mxDouble>;
+
+    const mxClassID valueMxClassID = mxDataTypeToClassID_t<typename value_t>::value;
 
     enum CscParallelism 
     {

@@ -43,7 +43,7 @@ sparseEigen<index_t,value_t>::sparseEigen(const mxArray *inputMatrix)
         if (mxIsSparse(inputMatrix) && mxIsDouble(inputMatrix)) //I think there's also sparse logicals
         {
             mwIndex *ir, *jc; // ir: row indec, jc: encode row index and values in pr per coloumn
-            double *pr; //value pointer
+            mxDouble *pr; //value pointer
             
             // Get the starting pointer of all three data arrays.
             pr = mxGetPr(inputMatrix);     // row index array
@@ -64,14 +64,14 @@ sparseEigen<index_t,value_t>::sparseEigen(const mxArray *inputMatrix)
                 this->eigSpMatrix = std::make_shared<spMat_t>(nRows,nCols);                
                 //this->eigSpMatrix->makeCompressed();
                 this->eigSpMatrix->reserve(nnz);
-                std::transform(std::execution::par_unseq, pr, pr+nnz, this->eigSpMatrix->valuePtr(), [](double d) -> float { return static_cast<float>(d);});    
+                std::transform(std::execution::par_unseq, pr, pr+nnz, this->eigSpMatrix->valuePtr(), [](double d) -> value_t { return static_cast<value_t>(d);});    
                 std::transform(std::execution::par_unseq, ir, ir+nnz, this->eigSpMatrix->innerIndexPtr(), [](mwIndex i) -> index_t { return static_cast<index_t>(i);});
                 std::transform(std::execution::par_unseq, jc, jc+(nCols+1), this->eigSpMatrix->outerIndexPtr(), [](mwIndex i) -> index_t { return static_cast<index_t>(i);});
                 this->eigSpMatrix->makeCompressed();
                 */
 
-               Eigen::Map<Eigen::SparseMatrix<double,Eigen::ColMajor,mwIndex>> matlabSparse(nRows,nCols,nnz,jc,ir,pr);
-               this->eigSpMatrix = std::make_shared<spMat_t>(matlabSparse.cast<float>());
+               Eigen::Map<Eigen::SparseMatrix<mxDouble,Eigen::ColMajor,mwIndex>> matlabSparse(nRows,nCols,nnz,jc,ir,pr);
+               this->eigSpMatrix = std::make_shared<spMat_t>(matlabSparse.cast<value_t>());
             }
             catch (const std::exception& e) {
                 std::string msg = std::string("Eigen Map could not be constructed from sparse matrix! Caught exception ") + e.what();      
@@ -87,19 +87,19 @@ sparseEigen<index_t,value_t>::sparseEigen(const mxArray *inputMatrix)
         {
             mwSize nCols = mxGetN(inputMatrix);       // number of columns
             mwSize nRows = mxGetM(inputMatrix);       // number of rows
-            float *singleData = mxGetSingles(inputMatrix);
+            mxSingle *singleData = mxGetSingles(inputMatrix);
 
             Eigen::Map<mxSingleAsMatrix_t> singleDataMap(singleData,nRows,nCols);            
-            this->eigSpMatrix = std::make_shared<spMat_t>(singleDataMap.sparseView());
+            this->eigSpMatrix = std::make_shared<spMat_t>(singleDataMap.cast<value_t>().sparseView());
         }
         else if (mxIsDouble(inputMatrix))
         {
             mwSize nCols = mxGetN(inputMatrix);       // number of columns
             mwSize nRows = mxGetM(inputMatrix);       // number of rows
-            double *doubleData = mxGetDoubles(inputMatrix);
+            mxDouble *doubleData = mxGetDoubles(inputMatrix);
 
-            Eigen::Map<mxDoubleAsMatrix_t> singleDataMap(doubleData,nRows,nCols);            
-            this->eigSpMatrix = std::make_shared<spMat_t>(singleDataMap.cast<float>().sparseView());
+            Eigen::Map<mxDoubleAsMatrix_t> doubleDataMap(doubleData,nRows,nCols);            
+            this->eigSpMatrix = std::make_shared<spMat_t>(doubleDataMap.cast<value_t>().sparseView());
         }
         else
         {
@@ -151,8 +151,8 @@ sparseEigen<index_t,value_t>::sparseEigen(const mxArray* i_, const mxArray* j_, 
         }
     }
 
-    mxArray* m = mxCreateDoubleScalar((double) maxI);
-    mxArray* n = mxCreateDoubleScalar((double) maxJ);
+    mxArray* m = mxCreateDoubleScalar((mxDouble) maxI);
+    mxArray* n = mxCreateDoubleScalar((mxDouble) maxJ);
 
     this->constructFromMatlabTriplets(i_,j_,v_,m,n);
 
@@ -174,12 +174,12 @@ void sparseEigen<index_t,value_t>::constructFromMatlabTriplets(const mxArray* i_
     UntypedMxDataAccessor<index_t> i(i_);
     UntypedMxDataAccessor<index_t> j(j_);
 
-    //For now we mimic the SparseDouble behavior of only allowing values of similar type (here singles). We could cast, if we want to, as well  
-    if (v_ == nullptr || !mxIsSingle(v_))
-        throw(MexException("sparseEigen:invalidInputType","Values must be of data type single"));
+    //For now we mimic the SparseDouble behavior of only allowing values of similar type. We could cast, if we want to, as well  
+    if (v_ == nullptr || !mxIsValueType<value_t>(v_))
+        throw(MexException("sparseEigen:invalidInputType","Values must be of matching data type"));
 
     mwSize numValues = mxGetNumberOfElements(v_); //We can even have matrices as input, so we only care for the number of elements
-    float* v = mxGetSingles(v_);    
+    value_t* v = static_cast<value_t*>(mxGetData(v_));    
 
     if ((i.size() != j.size()) || j.size() != numValues)
         throw(MexException("sparseEigen:invalidInputType","Different number of elements in input triplet vectors!"));
@@ -239,7 +239,7 @@ void sparseEigen<index_t,value_t>::constructFromMatlabTriplets(const mxArray* i_
         //Convert to base 0
         index_t row = i[getIx] - 1;
         index_t col = j[getIx] - 1;
-        float value = v[getIx];
+        value_t value = v[getIx];
 
         //mexPrintf("Inserting triplet %d at (%d,%d) with value %f;.\n",r,row,col,value);
 
@@ -258,7 +258,7 @@ template <typename index_t, typename value_t>
 sparseEigen<index_t,value_t>::~sparseEigen()
 {
     #ifndef NDEBUG 
-        mexPrintf("Calling destructor - %d single sparse matrix instances still exist!\n",this->eigSpMatrix.use_count() - 1);
+        mexPrintf("Calling destructor - %d Eigen sparse matrix instances still exist!\n",this->eigSpMatrix.use_count() - 1);
     #endif
 }
 
@@ -338,8 +338,8 @@ mxArray* sparseEigen<index_t,value_t>::rowColIndexing(const mxArray * const rowI
     sparseEigen<index_t,value_t>::Matlab2EigenIndexListConverter rowIndices4Eigen(rowIndex);
     sparseEigen<index_t,value_t>::Matlab2EigenIndexListConverter colIndices4Eigen(colIndex);
 
-    const double * const rowIndexData = rowIndices4Eigen.data();
-    const double * const colIndexData = colIndices4Eigen.data();
+    const mxDouble * const rowIndexData = rowIndices4Eigen.data();
+    const mxDouble * const colIndexData = colIndices4Eigen.data();
 
     const index_t nRowIndices = rowIndices4Eigen.size();
     const index_t nColIndices = colIndices4Eigen.size(); 
@@ -398,7 +398,7 @@ mxArray* sparseEigen<index_t,value_t>::rowColIndexing(const mxArray * const rowI
         }
         else
         {            
-            typedef Eigen::Triplet<float_t,index_t> T;
+            typedef Eigen::Triplet<value_t,index_t> T;
             spMat_t R(nRowIndices,this->getRows());
             spMat_t Q(this->getCols(),nColIndices);
             //Build the R matrix
@@ -476,7 +476,7 @@ mxArray* sparseEigen<index_t,value_t>::rowColAssignment(const mxArray * const ro
     {
         mwSize rowIx = mwSize(mxGetScalar(rowIndex)) - 1;
         mwSize colIx = mwSize(mxGetScalar(colIndex)) - 1;
-        float  value = float(mxGetScalar(assignedValues));
+        value_t  value = value_t(mxGetScalar(assignedValues));
         
         sparseEigen* newMatrixPtr;
         //We are assigning into the only instance of the matrix, so lets modify directly
@@ -536,8 +536,6 @@ sparseEigen<index_t,value_t>* sparseEigen<index_t,value_t>::allValues() const
 {
     index_t numValues = this->getRows()*this->getCols();
     index_t nnz = this->getNnz();
-    //mxArray* result = mxCreateNumericMatrix(numValues,1,mxSINGLE_CLASS,mxREAL);
-    //mxSingle* result_data = mxGetSingles(result);
 
     std::shared_ptr<spMat_t> subSpMat = std::make_shared<spMat_t>(numValues,1);
     subSpMat->reserve(nnz); 
@@ -632,7 +630,7 @@ void sparseEigen<index_t,value_t>::disp() const
 {
     if (this->getNnz() == 0)
     {
-        mexPrintf("   All zero sparse single: %dx%d\n",this->getRows(),this->getCols());
+        mexPrintf("   All zero sparse: %dx%d\n",this->getRows(),this->getCols());
     }            
 
     if (this->transposed)  
@@ -705,7 +703,7 @@ mxArray* sparseEigen<index_t,value_t>::linearIndexing(const mxArray* indexList) 
             index_t linearIndex = indexList4Eigen[0];
             index_t rowIx = this->linearIndexToRowIndex(linearIndex);
             index_t colIx = this->linearIndexToColIndex(linearIndex);
-            float value;
+            value_t value;
             if (!this->transposed)
                 value = this->eigSpMatrix->coeff(rowIx,colIx);
             else
@@ -753,7 +751,7 @@ mxArray* sparseEigen<index_t,value_t>::linearIndexing(const mxArray* indexList) 
                 }               
             }
 
-            //typedef Eigen::SparseVector<float,Eigen::ColMajor,index_t> spColVec_t;
+            //typedef Eigen::SparseVector<value_t,Eigen::ColMajor,index_t> spColVec_t;
             Eigen::Map<spMat_t> spMatAsVector(this->getRows()*this->getCols(),1,nnz,tmpOuterIndex.data(),tmpInnerIndex.data(),this->eigSpMatrix->valuePtr());
 
             //Check if we have a range
@@ -768,7 +766,7 @@ mxArray* sparseEigen<index_t,value_t>::linearIndexing(const mxArray* indexList) 
             }
             else 
             {   
-                typedef Eigen::Triplet<float,index_t> T;
+                typedef Eigen::Triplet<value_t,index_t> T;
                 std::vector<T> triplets;
 
                 std::vector<index_t> sortPattern(numValues);
@@ -826,7 +824,7 @@ mxArray* sparseEigen<index_t,value_t>::linearIndexing(const mxArray* indexList) 
                 
                 //We explicitly create a csr_matrix here to avoid overflowing the outerIndexVector
                 /*
-                Eigen::SparseMatrix<float,Eigen::RowMajor,index_t> R(numValues,this->getRows()*this->getCols());
+                Eigen::SparseMatrix<value_t,Eigen::RowMajor,index_t> R(numValues,this->getRows()*this->getCols());
                 //mexPrintf("%dx%d Matrix initialized!",R.rows(),R.cols());
                 R.reserve(numValues);    
                 //mexPrintf("Reserved Storage!");      
@@ -886,10 +884,10 @@ index_t sparseEigen<index_t,value_t>::linearIndexToRowIndex(const index_t linIx)
 template <typename index_t, typename value_t>
 mxArray* sparseEigen<index_t,value_t>::full() const 
 {
-    mxArray* fullMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),mxSINGLE_CLASS,mxREAL);
-    mxSingle* fullMatrix_data = mxGetSingles(fullMatrix);
+    mxArray* fullMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),valueMxClassID,mxREAL);
+    value_t* fullMatrix_data = static_cast<value_t*>(mxGetData(fullMatrix));
 
-    Eigen::Map<mxSingleAsMatrix_t> fullMatrixMap(fullMatrix_data,this->getRows(),this->getCols());
+    Eigen::Map<mxValueAsMatrix_t> fullMatrixMap(fullMatrix_data,this->getRows(),this->getCols());
     
     if (this->transposed)
         fullMatrixMap = this->eigSpMatrix->transpose().toDense();
@@ -903,14 +901,12 @@ template <typename index_t, typename value_t>
 mxArray* sparseEigen<index_t,value_t>::elementWiseBinaryOperation(const mxArray* operand, const ElementWiseOperation& op) const
 {    
     mxClassID mxType = mxGetClassID(operand);
-    //Check if it is a sparse single
-
+    
+    //Check if it is a sparse eigen through first checking a scalar
     mwSize m = mxGetM(operand);
     mwSize n = mxGetN(operand);
     
-    bool isScalar = (m == 1) & (n == 1);
-
-    
+    bool isScalar = (m == 1) & (n == 1);  
 
     std::string opName = "Matrix ";
     switch (op)
@@ -931,16 +927,13 @@ mxArray* sparseEigen<index_t,value_t>::elementWiseBinaryOperation(const mxArray*
             break;
         default:
             throw(MexException("sparseEigen:unkownOperation","Binary elementwise matrix operation not known!"));        
-    }
-
-            
+    }       
 
     mxArray* resultMatrix;    
 
+    //First, check for an uint64 scalar, as it might reference another instance of a sparseEigen matrix
     if (mxType == mxUINT64_CLASS && isScalar)
-    {
-        //This might be a sparseEigen matrix
-        
+    {                
         sparseEigen* operandSpS = nullptr;
 
         try 
@@ -1057,35 +1050,33 @@ mxArray* sparseEigen<index_t,value_t>::elementWiseBinaryOperation(const mxArray*
                 default:
                     throw(MexException("sparseEigen:unkownOperation","Binary elementwise matrix operation not known!"));  
             }
-            sparseEigen* resultsparseEigen = new sparseEigen(resultSparse); 
+            sparseEigen* resultSparseEigen = new sparseEigen(resultSparse); 
 
-            resultMatrix = convertPtr2Mat<sparseEigen>(resultsparseEigen);
+            resultMatrix = convertPtr2Mat<sparseEigen>(resultSparseEigen);
         }
         else
             throw(MexException("sparseEigen:wrongOperandSize",opName + "only implemented for same shape! Implicit expansion not yet supported!"));
     }  
     else{
         bool sizeMatch = (m == this->getRows()) & (n == this->getCols()); 
-    
 
-        if (mxType != mxSINGLE_CLASS && !isScalar)
-            throw(MexException("sparseEigen:wrongDataType",opName + " only implemented for single/double!"));      
+        // TODO: Allow other datatypes as well
+        if (mxType != valueMxClassID && !isScalar)
+            throw(MexException("sparseEigen:wrongDataType",opName + " only implemented for matching datatype!"));      
         
         if (!isScalar && !sizeMatch)
             throw(MexException("sparseEigen:wrongOperandSize",opName + "only implemented for scalars and same shape! Implicit expansion not yet supported!"));
 
-
-
         if (isScalar)
         {
-            float scalar = (float) mxGetScalar(operand);
+            value_t scalar = (value_t) mxGetScalar(operand);
 
             //These cases return dense matrices
             if (op == ELEMENTWISE_PLUS || op == ELEMENTWISE_MINUS_L || op == ELEMENTWISE_MINUS_R)
             {
-                resultMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),mxSINGLE_CLASS,mxREAL);
-                mxSingle* resultMatrix_data = mxGetSingles(resultMatrix);
-                Eigen::Map<mxSingleAsMatrix_t> resultMatrixMap(resultMatrix_data,this->getRows(),this->getCols());
+                resultMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),valueMxClassID,mxREAL);
+                value_t* resultMatrix_data = static_cast<value_t*>(mxGetData(resultMatrix));
+                Eigen::Map<mxValueAsMatrix_t> resultMatrixMap(resultMatrix_data,this->getRows(),this->getCols());
                 if (this->transposed)
                     resultMatrixMap = this->eigSpMatrix->transpose().toDense();
                 else
@@ -1145,12 +1136,12 @@ mxArray* sparseEigen<index_t,value_t>::elementWiseBinaryOperation(const mxArray*
         }
         else if (sizeMatch)   //sparse matrix & dense matrix operation     
         {
-            resultMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),mxSINGLE_CLASS,mxREAL);
-            mxSingle* resultMatrix_data = mxGetSingles(resultMatrix);
-            Eigen::Map<mxSingleAsMatrix_t> resultMatrixMap(resultMatrix_data,this->getRows(),this->getCols());
+            resultMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),valueMxClassID,mxREAL);
+            value_t* resultMatrix_data = static_cast<value_t*>(mxGetData(resultMatrix));
+            Eigen::Map<mxValueAsMatrix_t> resultMatrixMap(resultMatrix_data,this->getRows(),this->getCols());                        
 
-            float* denseOperand_data = mxGetSingles(operand);
-            Eigen::Map<mxSingleAsMatrix_t> denseMatrixMap(denseOperand_data,this->getRows(),this->getCols());
+            value_t* denseOperand_data = static_cast<value_t*>(mxGetData(operand));
+            Eigen::Map<mxValueAsMatrix_t> denseMatrixMap(denseOperand_data,this->getRows(),this->getCols());
             
             switch (op)
                 {   
@@ -1337,7 +1328,7 @@ mxArray* sparseEigen<index_t,value_t>::elementWiseComparison(const mxArray* oper
         bool sizeMatch = (m == this->getRows()) & (n == this->getCols()); 
     
 
-        if (mxType != mxSINGLE_CLASS && !isScalar)
+        if (mxType != valueMxClassID && !isScalar)
             throw(MexException("sparseEigen:wrongDataType",opName + " only implemented for single/double!"));      
         
         if (!isScalar && !sizeMatch)
@@ -1347,14 +1338,15 @@ mxArray* sparseEigen<index_t,value_t>::elementWiseComparison(const mxArray* oper
 
         if (isScalar)
         {
-            float scalar = (float) mxGetScalar(operand);
+            value_t scalar = (value_t) mxGetScalar(operand);
 
             //These cases return dense matrices
             if (op == ELEMENTWISE_PLUS || op == ELEMENTWISE_MINUS_L || op == ELEMENTWISE_MINUS_R)
             {
-                resultMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),mxSINGLE_CLASS,mxREAL);
-                mxSingle* resultMatrix_data = mxGetSingles(resultMatrix);
-                Eigen::Map<mxSingleAsMatrix_t> resultMatrixMap(resultMatrix_data,this->getRows(),this->getCols());
+                resultMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),valueMxClassID,mxREAL);
+                value_t* resultMatrix_data = static_cast<value_t*>(mxGetData(resultMatrix));                
+                Eigen::Map<mxValueAsMatrix_t> resultMatrixMap(resultMatrix_data,this->getRows(),this->getCols());
+
                 if (this->transposed)
                     resultMatrixMap = this->eigSpMatrix->transpose().toDense();
                 else
@@ -1414,12 +1406,12 @@ mxArray* sparseEigen<index_t,value_t>::elementWiseComparison(const mxArray* oper
         }
         else if (sizeMatch)   //sparse matrix & dense matrix operation     
         {
-            resultMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),mxSINGLE_CLASS,mxREAL);
-            mxSingle* resultMatrix_data = mxGetSingles(resultMatrix);
-            Eigen::Map<mxSingleAsMatrix_t> resultMatrixMap(resultMatrix_data,this->getRows(),this->getCols());
+            resultMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),valueMxClassID,mxREAL);
+            value_t* resultMatrix_data = static_cast<value_t*>(mxGetData(resultMatrix));
+            Eigen::Map<mxValueAsMatrix_t> resultMatrixMap(resultMatrix_data,this->getRows(),this->getCols());            
 
-            float* denseOperand_data = mxGetSingles(operand);
-            Eigen::Map<mxSingleAsMatrix_t> denseMatrixMap(denseOperand_data,this->getRows(),this->getCols());
+            value_t* denseOperand_data = static_cast<value_t*>(mxGetData(operand));
+            Eigen::Map<mxValueAsMatrix_t> denseMatrixMap(denseOperand_data,this->getRows(),this->getCols());            
             
             switch (op)
                 {   
@@ -1596,7 +1588,7 @@ mxArray* sparseEigen<index_t,value_t>::mtimesr(const mxArray* rightFactor) const
             resultMatrix = convertPtr2Mat<sparseEigen>(new sparseEigen(newMatrix));
         }
     }
-    else if (mxType == mxSINGLE_CLASS || mxType == mxDOUBLE_CLASS)
+    else if (mxType == valueMxClassID || mxType == mxSINGLE_CLASS || mxType == mxDOUBLE_CLASS)
     {
         mwSize m = mxGetM(rightFactor);
         mwSize n = mxGetN(rightFactor);
@@ -1609,21 +1601,31 @@ mxArray* sparseEigen<index_t,value_t>::mtimesr(const mxArray* rightFactor) const
         else if (sizeMatch)
         {            
             //Create the result array and map eigen vector around it - when transposed, the getRows is already considering this
-            resultMatrix = mxCreateNumericMatrix(this->getRows(),n,mxSINGLE_CLASS,mxREAL);
-            mxSingle* result_data = mxGetSingles(resultMatrix);
-            Eigen::Map<mxSingleAsMatrix_t> resultMap(result_data,this->getRows(),n);
-            
+            resultMatrix = mxCreateNumericMatrix(this->getRows(),n,valueMxClassID,mxREAL);
+            value_t* result_data = static_cast<value_t*>(mxGetData(resultMatrix));
+            Eigen::Map<mxValueAsMatrix_t> resultMap(result_data,this->getRows(),n);                       
             
             //Create a Map to the Eigen vector
-            if (mxType == mxSINGLE_CLASS)
+            //TODO: Clean this up, maybe with some helper function, such that we can minimize the code duplication
+            if (mxType == valueMxClassID)
+            {
+                value_t* vals = static_cast<value_t*>(mxGetData(rightFactor));
+                Eigen::Map<mxValueAsMatrix_t> factorMatrixMap(vals,m,n);
+            
+                if (this->transposed)
+                    resultMap = this->eigSpMatrix->transpose() * factorMatrixMap;
+                else
+                    resultMap = (*this->eigSpMatrix) * factorMatrixMap;                
+            }
+            else if (mxType == mxSINGLE_CLASS)
             {
                 mxSingle* vals = mxGetSingles(rightFactor);
                 Eigen::Map<mxSingleAsMatrix_t> factorMatrixMap(vals,m,n);
             
                 if (this->transposed)
-                    resultMap = this->eigSpMatrix->transpose() * factorMatrixMap;
+                    resultMap = this->eigSpMatrix->transpose() * factorMatrixMap.cast<value_t>();
                 else
-                    resultMap = (*this->eigSpMatrix) * factorMatrixMap;
+                    resultMap = (*this->eigSpMatrix) * factorMatrixMap.cast<value_t>();   
             }
             else if (mxType == mxDOUBLE_CLASS)
             {
@@ -1632,9 +1634,9 @@ mxArray* sparseEigen<index_t,value_t>::mtimesr(const mxArray* rightFactor) const
                 
             
                 if (this->transposed)
-                    resultMap = this->eigSpMatrix->transpose() * factorMatrixMap.cast<float>();
+                    resultMap = this->eigSpMatrix->transpose() * factorMatrixMap.cast<value_t>();
                 else
-                    resultMap = (*this->eigSpMatrix) * factorMatrixMap.cast<float>();                     
+                    resultMap = (*this->eigSpMatrix) * factorMatrixMap.cast<value_t>();                     
             }
             else
                 throw(MexException("sparseEigen:failingSanityCheck","Matrix multiplication failed sanity check!"));
@@ -1707,7 +1709,7 @@ mxArray* sparseEigen<index_t,value_t>::mtimesl(const mxArray* leftFactor) const
             resultMatrix = convertPtr2Mat<sparseEigen>(new sparseEigen(newMatrix));
         }
     }
-    else if (mxType == mxSINGLE_CLASS || mxType == mxDOUBLE_CLASS)
+    else if (mxType == valueMxClassID || mxType == mxSINGLE_CLASS || mxType == mxDOUBLE_CLASS)
     {
         mwSize m = mxGetM(leftFactor);
         mwSize n = mxGetN(leftFactor);
@@ -1721,20 +1723,30 @@ mxArray* sparseEigen<index_t,value_t>::mtimesl(const mxArray* leftFactor) const
         {
                         
             //Create the result array and map eigen vector around it - when transposed, the getRows is already considering this
-            resultMatrix = mxCreateNumericMatrix(m,this->getCols(),mxSINGLE_CLASS,mxREAL);
-            mxSingle* result_data = mxGetSingles(resultMatrix);
-            Eigen::Map<mxSingleAsMatrix_t> resultMap(result_data,m,this->getCols());
-            
-            if (mxType == mxSINGLE_CLASS)
+            resultMatrix = mxCreateNumericMatrix(m,this->getCols(),valueMxClassID,mxREAL);
+            value_t* result_data = static_cast<value_t*>(mxGetData(resultMatrix));
+            Eigen::Map<mxValueAsMatrix_t> resultMap(result_data,m,this->getCols());
+
+            if (mxType == valueMxClassID)
+            {
+                value_t* vals = static_cast<value_t*>(mxGetData(leftFactor));
+                Eigen::Map<mxValueAsMatrix_t> factorMatrixMap(vals,m,n);
+
+                if (this->transposed)
+                    resultMap = factorMatrixMap * this->eigSpMatrix->transpose();
+                else
+                    resultMap = factorMatrixMap * (*this->eigSpMatrix);                 
+            }
+            else if (mxType == mxSINGLE_CLASS)
             {
                 //Create a Map to the Eigen vector
                 mxSingle* vals = mxGetSingles(leftFactor);
                 Eigen::Map<mxSingleAsMatrix_t> factorMatrixMap(vals,m,n);
 
                 if (this->transposed)
-                    resultMap = factorMatrixMap * this->eigSpMatrix->transpose();
+                    resultMap = factorMatrixMap.cast<value_t>() * this->eigSpMatrix->transpose();
                 else
-                    resultMap = factorMatrixMap * (*this->eigSpMatrix); 
+                    resultMap = factorMatrixMap.cast<value_t>() * (*this->eigSpMatrix); 
 
             }
             else if (mxType == mxDOUBLE_CLASS)
@@ -1744,9 +1756,9 @@ mxArray* sparseEigen<index_t,value_t>::mtimesl(const mxArray* leftFactor) const
                 Eigen::Map<mxDoubleAsMatrix_t> factorMatrixMap(vals,m,n);
 
                 if (this->transposed)
-                    resultMap = factorMatrixMap.cast<float>() * this->eigSpMatrix->transpose();
+                    resultMap = factorMatrixMap.cast<value_t>() * this->eigSpMatrix->transpose();
                 else
-                    resultMap = factorMatrixMap.cast<float>() * (*this->eigSpMatrix); 
+                    resultMap = factorMatrixMap.cast<value_t>() * (*this->eigSpMatrix); 
 
             }
             else
@@ -1857,7 +1869,7 @@ mxArray* sparseEigen<index_t,value_t>::mldivide(const mxArray* b) const
         else
             throw(MexException("sparseEigen:wrongOperandSize"," Matrix multiplication only implemented for same shape! Implicit expansion not yet supported!"));
     }
-    else if (mxType == mxSINGLE_CLASS || mxType == mxDOUBLE_CLASS)
+    else if (mxType == valueMxClassID || mxType == mxSINGLE_CLASS || mxType == mxDOUBLE_CLASS)
     {
         
         mwSize b_m = mxGetM(b);
@@ -1876,9 +1888,9 @@ mxArray* sparseEigen<index_t,value_t>::mldivide(const mxArray* b) const
             result_n = b_n;
             
             //Create the result array and map eigen vector around it - when transposed, the getRows is already considering this
-            resultMatrix = mxCreateNumericMatrix(result_m,result_n,mxSINGLE_CLASS,mxREAL);
-            mxSingle* result_data = mxGetSingles(resultMatrix);
-            Eigen::Map<mxSingleAsMatrix_t> resultMap(result_data,result_m,result_n);
+            resultMatrix = mxCreateNumericMatrix(result_m,result_n,valueMxClassID,mxREAL);
+            value_t* result_data = static_cast<value_t*>(mxGetData(resultMatrix));
+            Eigen::Map<mxValueAsMatrix_t> resultMap(result_data,result_m,result_n);                        
             
             //If the matrix is square, we use SparseLU
             Eigen::ComputationInfo info;
@@ -1905,7 +1917,15 @@ mxArray* sparseEigen<index_t,value_t>::mldivide(const mxArray* b) const
                 this->reportSolverInfo(info);
 
                 //Create a Map to the Eigen vector
-                if (mxType == mxSINGLE_CLASS)
+                if (mxType == valueMxClassID)
+                {
+                    value_t* vals = static_cast<value_t*>(mxGetData(b));
+                    Eigen::Map<mxValueAsMatrix_t> factorMatrixMap(vals,b_m,b_n);                    
+                    
+                    resultMap = solverLU.solve(factorMatrixMap);
+                    info = solverLU.info();
+                }
+                else if (mxType == mxSINGLE_CLASS)
                 {
                     mxSingle* vals = mxGetSingles(b);
                     Eigen::Map<mxSingleAsMatrix_t> factorMatrixMap(vals,b_m,b_n);
@@ -1918,7 +1938,7 @@ mxArray* sparseEigen<index_t,value_t>::mldivide(const mxArray* b) const
                     mxDouble* vals = mxGetDoubles(b);
                     Eigen::Map<mxDoubleAsMatrix_t> factorMatrixMap(vals,b_m,b_n);                
                     
-                    resultMap = solverLU.solve(factorMatrixMap.cast<float>());
+                    resultMap = solverLU.solve(factorMatrixMap.cast<value_t>());
                     info = solverLU.info();
                 }
                 else
@@ -1937,7 +1957,15 @@ mxArray* sparseEigen<index_t,value_t>::mldivide(const mxArray* b) const
                 this->reportSolverInfo(info);
 
                 //Create a Map to the Eigen vector
-                if (mxType == mxSINGLE_CLASS)
+                if (mxType == valueMxClassID)
+                {
+                    value_t* vals = static_cast<value_t*>(mxGetData(b));
+                    Eigen::Map<mxValueAsMatrix_t> factorMatrixMap(vals,b_m,b_n);                    
+                    
+                    resultMap = solverQR.solve(factorMatrixMap);
+                    info = solverQR.info();
+                }
+                else if (mxType == mxSINGLE_CLASS)
                 {
                     mxSingle* vals = mxGetSingles(b);
                     Eigen::Map<mxSingleAsMatrix_t> factorMatrixMap(vals,b_m,b_n);
@@ -1950,7 +1978,7 @@ mxArray* sparseEigen<index_t,value_t>::mldivide(const mxArray* b) const
                     mxDouble* vals = mxGetDoubles(b);
                     Eigen::Map<mxDoubleAsMatrix_t> factorMatrixMap(vals,b_m,b_n);                
                     
-                    resultMap = solverQR.solve(factorMatrixMap.cast<float>());
+                    resultMap = solverQR.solve(factorMatrixMap.cast<value_t>());
                     info = solverQR.info();
                 }
                 else
@@ -1986,15 +2014,19 @@ mxArray* sparseEigen<index_t,value_t>::timesVec(const mxArray* vals_) const
     index_t n = mxGetNumberOfElements(vals_);
     if (n != this->getCols())
         throw(MexException("sparseEigen:timesVec:wrongSize","Operand Vector has incompatible size!"));
+
+    mxClassID classID = mxGetClassID(vals_);
+    if (classID != valueMxClassID)
+        throw(MexException("sparseEigen:timesVec:wrongDataType","Operand Vector has incompatible data type!"));
     
-    const mxSingle* vals = mxGetSingles(vals_);
+    const value_t* vals = static_cast<value_t*>(mxGetData(vals_));    
 
     //Create a Map to the Eigen vector
-    Eigen::Map<const Eigen::VectorXf> vecMap(vals,n);
+    Eigen::Map<const Eigen::VectorX<value_t>> vecMap(vals,n);
     //Create the result array and map eigen vector around it - when transposed, the getRows is already considering this
-    mxArray* result = mxCreateUninitNumericMatrix(this->getRows(),1,mxSINGLE_CLASS,mxREAL);
-    mxSingle* result_data = mxGetSingles(result);
-    Eigen::Map<Eigen::VectorXf> resultMap(result_data,this->getRows());
+    mxArray* result = mxCreateUninitNumericMatrix(this->getRows(),1,valueMxClassID,mxREAL);
+    value_t* result_data = static_cast<value_t*>(mxGetData(result));
+    Eigen::Map<Eigen::VectorX<value_t>> resultMap(result_data,this->getRows());    
     
     //Execute the product
     if (this->transposed)
@@ -2023,7 +2055,7 @@ mxArray* sparseEigen<index_t,value_t>::timesVec(const mxArray* vals_) const
                     for (index_t nzIx = start; nzIx < end; nzIx++)
                     {
                         index_t i = this->eigSpMatrix->innerIndexPtr()[nzIx];
-                        float v = this->eigSpMatrix->valuePtr()[nzIx];
+                        value_t v = this->eigSpMatrix->valuePtr()[nzIx];
 
                         result_data[i] += v*vals[j];
                     }
@@ -2046,9 +2078,9 @@ mxArray* sparseEigen<index_t,value_t>::timesVec(const mxArray* vals_) const
                     for (index_t nzIx = start; nzIx < end; nzIx++)
                     {
                         index_t i = this->eigSpMatrix->innerIndexPtr()[nzIx];
-                        float v = this->eigSpMatrix->valuePtr()[nzIx];
+                        value_t v = this->eigSpMatrix->valuePtr()[nzIx];
 
-                        float prod = v*vals[j];
+                        value_t prod = v*vals[j];
 
                         #pragma omp atomic
                         result_data[i] += prod;
@@ -2078,15 +2110,19 @@ mxArray* sparseEigen<index_t,value_t>::vecTimes(const mxArray* vals_) const
     if (n != this->getRows())
         throw(MexException("sparseEigen:vecTimes:wrongSize","Operand Vector has incompatible size!"));
     
-    const mxSingle* vals = mxGetSingles(vals_);
+    mxClassID classID = mxGetClassID(vals_);
+    if (classID != valueMxClassID)
+        throw(MexException("sparseEigen:vecTimes:wrongDataType","Operand Vector has incompatible data type!"));
+
+    const value_t* vals = static_cast<value_t*>(mxGetData(vals_));
 
     //Create a Map to the Eigen vector
-    Eigen::Map<const Eigen::VectorXf> vecMap(vals,n);
+    Eigen::Map<const Eigen::VectorX<value_t>> vecMap(vals,n);
 
     //Create the result array and map eigen vector around it - when transposed, the getRows is already considering this
-    mxArray* result = mxCreateNumericMatrix(1,this->getCols(),mxSINGLE_CLASS,mxREAL);
-    mxSingle* result_data = mxGetSingles(result);
-    Eigen::Map<Eigen::VectorXf> resultMap(result_data,this->getCols());
+    mxArray* result = mxCreateNumericMatrix(1,this->getCols(),valueMxClassID,mxREAL);
+    value_t* result_data = static_cast<value_t*>(mxGetData(result));
+    Eigen::Map<Eigen::VectorX<value_t>> resultMap(result_data,this->getCols());
     
     //Execute the product
     if (!this->transposed)
@@ -2103,9 +2139,9 @@ mxArray* sparseEigen<index_t,value_t>::timesScalar(const mxArray* val_) const
 {
     if (!mxIsScalar(val_))
         throw(MexException("sparseEigen:mexInterface:invalidMexCall:timesScalar","Input needs to be scalar!"));
-    const mxSingle* val = mxGetSingles(val_);
-    mxSingle scalar = val[0];
-    
+
+    value_t scalar = static_cast<value_t>(mxGetScalar(val_));
+
     index_t numValues = this->getRows()*this->getCols();
     index_t nnz = this->getNnz();
 
@@ -2120,4 +2156,4 @@ mxArray* sparseEigen<index_t,value_t>::timesScalar(const mxArray* val_) const
 }
 
 // Standard sparse single
-template class sparseEigen<int64_t,float>;
+template class sparseEigen<int64_t,mxSingle>;
