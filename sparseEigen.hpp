@@ -1,5 +1,5 @@
-#ifndef SPARSE_SINGLE_HPP
-#define SPARSE_SINGLE_HPP
+#ifndef SPARSE_EIGEN_HPP
+#define SPARSE_EIGEN_HPP
 
 #include <type_traits>
 #include "mex.h"
@@ -16,13 +16,13 @@ template<mxClassID T>
 using mxClassToDataType = typename mxClassToDataType_t<T>::type;
 
 
-class sparseSingle
+template<typename index_t, typename value_t>
+class sparseEigen
 {
 public:    
     //// Typedefs ////
-    typedef int64_t index_t;
-    typedef Eigen::SparseMatrix<float,Eigen::ColMajor,index_t> spMat_t;
-    typedef Eigen::SparseMatrix<float,Eigen::RowMajor,index_t> spMatTransposed_t;
+    typedef Eigen::SparseMatrix<value_t,Eigen::ColMajor,index_t> spMat_t;
+    typedef Eigen::SparseMatrix<value_t,Eigen::RowMajor,index_t> spMatTransposed_t;
 
     template<typename mxType>
     using mxAsMatrix_t = Eigen::Matrix<mxType,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor>;
@@ -65,28 +65,28 @@ public:
     //// Functions ////
 
     /// @brief construct an empty sparse matrix
-    sparseSingle();
+    sparseEigen();
 
     /// @brief copy constructor performing deep copy
     /// @param eigSpMatrix_ 
-    sparseSingle(const sparseSingle& copy);
+    sparseEigen(const sparseEigen& copy);
 
     
 
     /// @brief construct single sparse matrix from a matrix (matlab double sparse matrix, single matrix, or double matrix)
     /// @param sparseDouble 
-    sparseSingle(const mxArray *inputMatrix);
+    sparseEigen(const mxArray *inputMatrix);
 
     /// @brief construct empty sparse matrix with specific size
     /// @param m number of rows 
     /// @param n number of cols
-    sparseSingle(const mxArray *m, const mxArray *n);
+    sparseEigen(const mxArray *m, const mxArray *n);
 
     /// @brief construct sparse matrix from triplets with size max(i)xmax(j)
     /// @param i row indices
     /// @param j col indices
     /// @param v values
-    sparseSingle(const mxArray *i, const mxArray *j, const mxArray* v);
+    sparseEigen(const mxArray *i, const mxArray *j, const mxArray* v);
 
     /// @brief construct sparse matrix from triplets with given size
     /// @param i row indices 
@@ -95,9 +95,9 @@ public:
     /// @param m number of rows 
     /// @param n number of cols
     /// @param nz space to reserve for nzs -- does this parameter make sense for our class? Maybe in horzcat/vertcat operations
-    sparseSingle(const mxArray *i, const mxArray *j, const mxArray* v, const mxArray* m, const mxArray* n, const mxArray* nz = nullptr);
+    sparseEigen(const mxArray *i, const mxArray *j, const mxArray* v, const mxArray* m, const mxArray* n, const mxArray* nz = nullptr);
 
-    ~sparseSingle();
+    ~sparseEigen();
 
     mwSize getNnz() const;
     mwSize getCols() const;
@@ -108,19 +108,19 @@ public:
     bool isSquare() const;
 
     /// @brief Transposes the matrix by setting a transpose flag
-    /// @return Pointer to transposed single sparse matrix. Will only hold a shared copy under the hood
+    /// @return Pointer to transposed single sparse matrix. Will only h Will only hold a shared copy under the hoodold a shared copy under the hood
     mxArray* transpose() const;
 
     /// @brief Transposes the matrix by setting a transpose flag
     /// @return Pointer to transposed single sparse matrix. Will only hold a shared copy under the hood
-    ///sparseSingle* setCscParallelism(const mxArray* cscParallelism_) const;
+    ///sparseEigen* setCscParallelism(const mxArray* cscParallelism_) const;
     
     /// @brief Transposes the matrix by setting a transpose flag
     /// @return Pointer to transposed single sparse matrix. Will only hold a shared copy under the hood
     ///mxArray* getCscParallelism() const;
     
 
-    sparseSingle* horzcat() const;
+    sparseEigen* horzcat() const;
 
     /// @brief Get dense matrix as mxArray
     /// @return Dense Matrix as mxArray
@@ -129,12 +129,12 @@ public:
     //// binary elementwise operations ////
 
     /// @brief Add a single matrix/scalar to sparse matrix
-    /// @param summand single matrix as mxArray, can be also sparseSingle or scalar
+    /// @param summand single matrix as mxArray, can be also sparseEigen or scalar
     /// @return single matrix
     mxArray* plus(const mxArray* summand) const;
 
     /// @brief Add a single matrix/scalar to sparse matrix
-    /// @param factor single matrix as mxArray, can be also sparseSingle or scalar
+    /// @param factor single matrix as mxArray, can be also sparseEigen or scalar
     /// @return single matrix
     mxArray* times(const mxArray* factor) const;
 
@@ -143,22 +143,22 @@ public:
     mxArray* uminus() const;
 
     /// @brief Subtract a sparse matrix from a single matrix/scalar
-    /// @param minuend matrix as mxArray, can be also sparseSingle or scalar, sucht that result = minuend - this
+    /// @param minuend matrix as mxArray, can be also sparseEigen or scalar, sucht that result = minuend - this
     /// @return single matrix
     mxArray* minusAsSubtrahend(const mxArray* minuend) const;
 
     /// @brief Subtract a single matrix/scalar from a sparse matrix
-    /// @param subtrahend matrix as mxArray, can be also sparseSingle or scalar, sucht that result = this - subtrahend
+    /// @param subtrahend matrix as mxArray, can be also sparseEigen or scalar, sucht that result = this - subtrahend
     /// @return single matrix
     mxArray* minusAsMinuend(const mxArray* subtrahend) const;
 
     /// @brief Divide a sparse matrix by given divisor
-    /// @param divisor matrix as mxArray, can be also sparseSingle or scalar, sucht that result = this./divisor
+    /// @param divisor matrix as mxArray, can be also sparseEigen or scalar, sucht that result = this./divisor
     /// @return single matrix
     mxArray* rdivide(const mxArray* divisor) const;
 
     /// @brief Divide a dividend by a sparse matrix
-    /// @param dividend matrix as mxArray, can be also sparseSingle or scalar, sucht that result = dividend./this
+    /// @param dividend matrix as mxArray, can be also sparseEigen or scalar, sucht that result = dividend./this
     /// @return single matrix
     mxArray* ldivide(const mxArray* dividend) const;
 
@@ -175,7 +175,7 @@ public:
     mxArray* mtimesl(const mxArray* leftfactor) const;
 
     /// @brief Solve the system Ax = b for x
-    /// @param b constant equality matrix as mxArray, can be also sparseSingle or scalar, sucht that result = this\b
+    /// @param b constant equality matrix as mxArray, can be also sparseEigen or scalar, sucht that result = this\b
     /// @return single matrix (solution x)
     mxArray* mldivide(const mxArray* b) const;
 
@@ -234,16 +234,16 @@ private:
     //// PRIVATE MEMBER FUNCTIONS ////
     /// @brief non-copy constructor for given Eigen matrix (mostly internal copies)
     /// @param eigSpMatrix_ 
-    sparseSingle(std::shared_ptr<spMat_t> eigSpMatrix_);
+    sparseEigen(std::shared_ptr<spMat_t> eigSpMatrix_);
 
     /// @brief copy constructor sharing matrix storage
     /// @param eigSpMatrix_ 
-    sparseSingle(sparseSingle& shared_copy);
+    sparseEigen(sparseEigen& shared_copy);
 
     /// @brief Return all values (when called from Maltab as A(:)) by just restructuring the matrix
-    /// @return Pointer to sparseSingle (n*M)x1 matrix
+    /// @return Pointer to sparseEigen (n*M)x1 matrix
     /// @todo Maybe we could also make a version that shares the data memory when read-only
-    sparseSingle* allValues() const;
+    sparseEigen* allValues() const;
 
     /*
     template<typename T>    
@@ -262,7 +262,7 @@ private:
         else if (std::is_same<mxSingle,Tvalue>)
             vals = mxGetDoubles(leftFactor);
         else
-            throw(MexException("sparseSingle:wrongDataType"),"Data type not supported!");
+            throw(MexException("sparseEigen:wrongDataType"),"Data type not supported!");
         
         mxAsMatrix_t<Tvalue> factorMatrixMap(vals,m,n);
 
@@ -316,8 +316,8 @@ private:
     {       
     public:
 
-        sparseSingle::index_t size() const { return index_t(this->nIndices); }
-        sparseSingle::index_t operator[] (sparseSingle::index_t i) const { return static_cast<index_t>(this->indexData[i]) - 1; }        
+        index_t size() const { return index_t(this->nIndices); }
+        index_t operator[] (index_t i) const { return static_cast<index_t>(this->indexData[i]) - 1; }        
 
         const double *const data() const { return this->indexData; }
 
@@ -329,7 +329,7 @@ private:
                 this->nIndices = mxGetNumberOfElements(ixList);
             }
             else
-                throw(MexException("sparseSingle::invalidIndex","Invalid Index List"));
+                throw(MexException("sparseEigen::invalidIndex","Invalid Index List"));
         }
 
     private:
@@ -368,17 +368,17 @@ private:
                 case mxUINT64_CLASS:
                     return static_cast<T>( ((mxUint64*) this->data)[i] ); 
                 default:
-                    throw(MexException("sparseSingle:invalidDataType","Invalid Data Type in mxArray!"));
+                    throw(MexException("sparseEigen:invalidDataType","Invalid Data Type in mxArray!"));
             };            
         }
 
         UntypedMxDataAccessor(const mxArray* const dataArray) 
         {
             if(dataArray == nullptr)
-                throw(MexException("sparseSingle:invalidDataPointer","Data pointer to mxArray was empty!"));
+                throw(MexException("sparseEigen:invalidDataPointer","Data pointer to mxArray was empty!"));
             
             if(!mxIsNumeric(dataArray) || mxIsSparse(dataArray))
-                throw(MexException("sparseSingle:invalidDataPointer","Invalid Data is mxArray!"));
+                throw(MexException("sparseEigen:invalidDataPointer","Invalid Data is mxArray!"));
 
             this->classID = mxGetClassID(dataArray);            
             this->data = mxGetData(dataArray);
@@ -395,4 +395,8 @@ private:
     };
 };
 
-#endif //SPARSE_SINGLE_HPP
+//////////////////////////////////////////////////////////////////////////////////////////////
+//#include "sparseEigen.tpp"
+//////////////////////////////////////////////////////////////////////////////////////////////
+
+#endif //SPARSE_EIGEN_HPP

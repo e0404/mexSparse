@@ -1,40 +1,44 @@
-#include "sparseSingle.hpp"
-
 #include <algorithm>
 #include <execution>
 #include <chrono>
 #include <array>
 #include "class_handle.hpp"
 
+#include "sparseEigen.hpp"
+
 //// Construct & Delete ////
 
-sparseSingle::sparseSingle() 
+template <typename index_t, typename value_t>
+sparseEigen<index_t,value_t>::sparseEigen() 
 { 
     this->eigSpMatrix = std::make_shared<spMat_t>();
 }
 
-sparseSingle::sparseSingle(const sparseSingle& copy) :
+template <typename index_t, typename value_t>
+sparseEigen<index_t,value_t>::sparseEigen(const sparseEigen& copy) :
     eigSpMatrix(std::make_shared<spMat_t>(*copy.eigSpMatrix)), 
     transposed(copy.transposed)
 {}
 
-
-sparseSingle::sparseSingle(sparseSingle& copy)
+template <typename index_t, typename value_t>
+sparseEigen<index_t,value_t>::sparseEigen(sparseEigen& copy)
 {
     this->eigSpMatrix = copy.eigSpMatrix;
     this->transposed = copy.transposed;
 }
 
-sparseSingle::sparseSingle(std::shared_ptr<spMat_t> eigSpMatrix_) 
+template <typename index_t, typename value_t>
+sparseEigen<index_t,value_t>::sparseEigen(std::shared_ptr<spMat_t> eigSpMatrix_) 
 {
         this->eigSpMatrix = eigSpMatrix_;        
     }
 
-sparseSingle::sparseSingle(const mxArray *inputMatrix) 
+template <typename index_t, typename value_t>
+sparseEigen<index_t,value_t>::sparseEigen(const mxArray *inputMatrix) 
 {
         if (!inputMatrix)
         {
-            throw(MexException("sparseSingle:invalidInputType","Matrix to construct from invalid!"));         
+            throw(MexException("sparseEigen:invalidInputType","Matrix to construct from invalid!"));         
         }        
         if (mxIsSparse(inputMatrix) && mxIsDouble(inputMatrix)) //I think there's also sparse logicals
         {
@@ -71,11 +75,11 @@ sparseSingle::sparseSingle(const mxArray *inputMatrix)
             }
             catch (const std::exception& e) {
                 std::string msg = std::string("Eigen Map could not be constructed from sparse matrix! Caught exception ") + e.what();      
-                throw(MexException("sparseSingle:errorOnConstruct",msg));
+                throw(MexException("sparseEigen:errorOnConstruct",msg));
             }
             catch (...)
             {
-                throw(MexException("sparseSingle:errorOnConstruct","Eigen Map could not be constructed from sparse matrix!"));
+                throw(MexException("sparseEigen:errorOnConstruct","Eigen Map could not be constructed from sparse matrix!"));
             }
                    
         }
@@ -99,19 +103,20 @@ sparseSingle::sparseSingle(const mxArray *inputMatrix)
         }
         else
         {
-            throw(MexException("sparseSingle:invalidInputType","Invalid Input Argument!"));      
+            throw(MexException("sparseEigen:invalidInputType","Invalid Input Argument!"));      
         }
         this->eigSpMatrix->makeCompressed(); // Not sure if necessary
     }
 
-sparseSingle::sparseSingle(const mxArray *m_, const mxArray *n_) 
+template <typename index_t, typename value_t>
+sparseEigen<index_t,value_t>::sparseEigen(const mxArray *m_, const mxArray *n_) 
 {
     //Argument checks
     if (!mxIsScalar(m_) || !mxIsScalar(n_))
-        throw(MexException("sparseSingle:invalidInputType","Row and Column Number must both be scalars!"));
+        throw(MexException("sparseEigen:invalidInputType","Row and Column Number must both be scalars!"));
     
     if ((!mxIsNumeric(m_) && !mxIsChar(m_) ) || !mxIsNumeric(n_) && !mxIsChar(n_))
-        throw(MexException("sparseSingle:invalidInputType","Row and/or Column Number input is invalid!"));
+        throw(MexException("sparseEigen:invalidInputType","Row and/or Column Number input is invalid!"));
     
     //Note that this implicitly casts to double and thus also allows other data types from matlab
     index_t m = (index_t) mxGetScalar(m_); 
@@ -120,7 +125,8 @@ sparseSingle::sparseSingle(const mxArray *m_, const mxArray *n_)
     this->eigSpMatrix = std::make_shared<spMat_t>(m,n);
 }
 
-sparseSingle::sparseSingle(const mxArray* i_, const mxArray* j_, const mxArray* v_)
+template <typename index_t, typename value_t>
+sparseEigen<index_t,value_t>::sparseEigen(const mxArray* i_, const mxArray* j_, const mxArray* v_)
 {
     //We only obtain the size here before calling the construction with given sizes
     index_t maxI = 0;
@@ -154,12 +160,14 @@ sparseSingle::sparseSingle(const mxArray* i_, const mxArray* j_, const mxArray* 
     mxDestroyArray(n);
 }
 
-sparseSingle::sparseSingle(const mxArray* i, const mxArray* j, const mxArray* v, const mxArray* m, const mxArray* n, const mxArray* nz)
+template <typename index_t, typename value_t>
+sparseEigen<index_t,value_t>::sparseEigen(const mxArray* i, const mxArray* j, const mxArray* v, const mxArray* m, const mxArray* n, const mxArray* nz)
 {
     this->constructFromMatlabTriplets(i,j,v,m,n,nz);
 }
 
-void sparseSingle::constructFromMatlabTriplets(const mxArray* i_, const mxArray* j_, const mxArray* v_, const mxArray* m_, const mxArray* n_, const mxArray* nz_)
+template <typename index_t, typename value_t>
+void sparseEigen<index_t,value_t>::constructFromMatlabTriplets(const mxArray* i_, const mxArray* j_, const mxArray* v_, const mxArray* m_, const mxArray* n_, const mxArray* nz_)
 {
     //We fill triplets manually because Eigen would expect them as a Triplet construct, but we have independent mxArrays and would need to copy everything together
 
@@ -168,13 +176,13 @@ void sparseSingle::constructFromMatlabTriplets(const mxArray* i_, const mxArray*
 
     //For now we mimic the SparseDouble behavior of only allowing values of similar type (here singles). We could cast, if we want to, as well  
     if (v_ == nullptr || !mxIsSingle(v_))
-        throw(MexException("sparseSingle:invalidInputType","Values must be of data type single"));
+        throw(MexException("sparseEigen:invalidInputType","Values must be of data type single"));
 
     mwSize numValues = mxGetNumberOfElements(v_); //We can even have matrices as input, so we only care for the number of elements
     float* v = mxGetSingles(v_);    
 
     if ((i.size() != j.size()) || j.size() != numValues)
-        throw(MexException("sparseSingle:invalidInputType","Different number of elements in input triplet vectors!"));
+        throw(MexException("sparseEigen:invalidInputType","Different number of elements in input triplet vectors!"));
     
     std::vector<index_t> sortPattern(numValues);
     #pragma omp parallel for schedule(static)
@@ -182,19 +190,19 @@ void sparseSingle::constructFromMatlabTriplets(const mxArray* i_, const mxArray*
         sortPattern[r] = r;
 
     if (!mxIsScalar(m_) || !mxIsScalar(n_) || !mxIsNumeric(m_) || !mxIsNumeric(n_))
-        throw(MexException("sparseSingle:invalidInputType","Row and Column numbers must be numeric scalars!"));
+        throw(MexException("sparseEigen:invalidInputType","Row and Column numbers must be numeric scalars!"));
 
     index_t m = mxGetScalar(m_);
     index_t n = mxGetScalar(n_);
 
     if (m < 0 || n < 0)
-        throw(MexException("sparseSingle:invalidInputType","Row and Column numbers must be greater or equal to zero!"));
+        throw(MexException("sparseEigen:invalidInputType","Row and Column numbers must be greater or equal to zero!"));
 
     index_t nnz_reserve = numValues;
     if (nz_ != nullptr)
     {
         if(!mxIsScalar(nz_) || !mxIsNumeric(nz_))
-            throw(MexException("sparseSingle:invalidInputType","Invalid number of nonzeros to reserve"));
+            throw(MexException("sparseEigen:invalidInputType","Invalid number of nonzeros to reserve"));
         
         nnz_reserve = (index_t) mxGetScalar(nz_);
 
@@ -204,7 +212,7 @@ void sparseSingle::constructFromMatlabTriplets(const mxArray* i_, const mxArray*
     }        
 
     if (m < 0 || n < 0)
-        throw(MexException("sparseSingle:invalidInputType","Row and Column numbers must be greater or equal to zero!"));
+        throw(MexException("sparseEigen:invalidInputType","Row and Column numbers must be greater or equal to zero!"));
 
     //Now we obtain the sort pattern of the triplets
     //The data accessor is not yet in index base 0!!
@@ -246,8 +254,9 @@ void sparseSingle::constructFromMatlabTriplets(const mxArray* i_, const mxArray*
     this->eigSpMatrix->makeCompressed();
 }
 
- sparseSingle::~sparseSingle()
- {
+template <typename index_t, typename value_t>
+sparseEigen<index_t,value_t>::~sparseEigen()
+{
     #ifndef NDEBUG 
         mexPrintf("Calling destructor - %d single sparse matrix instances still exist!\n",this->eigSpMatrix.use_count() - 1);
     #endif
@@ -255,26 +264,29 @@ void sparseSingle::constructFromMatlabTriplets(const mxArray* i_, const mxArray*
 
 
 //// Getters & Setters ////
-
-mwSize sparseSingle::getNnz() const {
+template <typename index_t, typename value_t>
+mwSize sparseEigen<index_t,value_t>::getNnz() const {
     return this->eigSpMatrix->nonZeros();
 }
 
-mwSize sparseSingle::getCols() const {
+template <typename index_t, typename value_t>
+mwSize sparseEigen<index_t,value_t>::getCols() const {
     if (this->transposed)
         return this->eigSpMatrix->rows();
     else
         return this->eigSpMatrix->cols();
 }
 
-mwSize sparseSingle::getRows() const {
+template <typename index_t, typename value_t>
+mwSize sparseEigen<index_t,value_t>::getRows() const {
     if (this->transposed)
         return this->eigSpMatrix->cols();
     else
         return this->eigSpMatrix->rows();
 }
 
-mxArray* sparseSingle::size() const {
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::size() const {
     mxArray* szArray = mxCreateDoubleMatrix(1,2,mxREAL);
     double* pr = mxGetDoubles(szArray);
     pr[0] = static_cast<double>(this->getRows());
@@ -282,45 +294,49 @@ mxArray* sparseSingle::size() const {
     return szArray;
 }
 
-mxArray* sparseSingle::nnz() const {
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::nnz() const {
     return mxCreateDoubleScalar((double) this->getNnz());
 }
 
-bool sparseSingle::isScalar() const {
+template <typename index_t, typename value_t>
+bool sparseEigen<index_t,value_t>::isScalar() const {
     return (this->getCols() == 1) && (this->getRows() == 1);
 }
 
-bool sparseSingle::isSquare() const {    
+template <typename index_t, typename value_t>
+bool sparseEigen<index_t,value_t>::isSquare() const {    
     return this->getCols() == this->getRows();
 }
 
 //// Private Helpers ////
-void sparseSingle::reportSolverInfo(Eigen::ComputationInfo& info) const
+template <typename index_t, typename value_t>
+void sparseEigen<index_t,value_t>::reportSolverInfo(Eigen::ComputationInfo& info) const
 {
     //if (info == Eigen::ComputationInfo::Success)
     //        mexWarnMsgTxt("Solved!!!");
     if (info == Eigen::ComputationInfo::NumericalIssue)
-        mexWarnMsgIdAndTxt("sparseSingle:solver:numericalIssue","Matrix is close to singular or badly scaled. Results may be inaccurate.");
+        mexWarnMsgIdAndTxt("sparseEigen:solver:numericalIssue","Matrix is close to singular or badly scaled. Results may be inaccurate.");
     if (info == Eigen::ComputationInfo::InvalidInput)
-        throw(MexException("sparseSingle:solver:wrongInput","Sparse solver could not interpret input!"));
+        throw(MexException("sparseEigen:solver:wrongInput","Sparse solver could not interpret input!"));
     if (info == Eigen::ComputationInfo::NoConvergence)
-        mexWarnMsgIdAndTxt("sparseSingle:solver:numericalIssue","Sparse solver could not interpret input!");
+        mexWarnMsgIdAndTxt("sparseEigen:solver:numericalIssue","Sparse solver could not interpret input!");
 }
 
 //// Indexing ////
- 
-mxArray* sparseSingle::rowColIndexing(const mxArray * const rowIndex, const mxArray * const colIndex) const
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::rowColIndexing(const mxArray * const rowIndex, const mxArray * const colIndex) const
 {
     //TODO: Transpose Implementation
     
-    sparseSingle* indexedSubMatrix = nullptr;
+    sparseEigen* indexedSubMatrix = nullptr;
 
     //Check if we are indexing a block
     bool consecutiveRows = false;
     bool consecutiveCols = false;
 
-    sparseSingle::Matlab2EigenIndexListConverter rowIndices4Eigen(rowIndex);
-    sparseSingle::Matlab2EigenIndexListConverter colIndices4Eigen(colIndex);
+    sparseEigen<index_t,value_t>::Matlab2EigenIndexListConverter rowIndices4Eigen(rowIndex);
+    sparseEigen<index_t,value_t>::Matlab2EigenIndexListConverter colIndices4Eigen(colIndex);
 
     const double * const rowIndexData = rowIndices4Eigen.data();
     const double * const colIndexData = colIndices4Eigen.data();
@@ -348,7 +364,7 @@ mxArray* sparseSingle::rowColIndexing(const mxArray * const rowIndex, const mxAr
         if(this->transposed)
         {
             //mexErrMsgTxt("Transpose not implemented!");
-            throw(MexException("sparseSingle:implementationMissing","Transpose not implemented!"));
+            throw(MexException("sparseEigen:implementationMissing","Transpose not implemented!"));
         }
         else{
             
@@ -362,7 +378,7 @@ mxArray* sparseSingle::rowColIndexing(const mxArray * const rowIndex, const mxAr
             auto block = this->eigSpMatrix->block(startRow,startCol,rows,cols);
             std::shared_ptr<spMat_t> blockSpMat = std::make_shared<spMat_t>(block);
             
-            indexedSubMatrix = new sparseSingle(blockSpMat);
+            indexedSubMatrix = new sparseEigen(blockSpMat);
         }
         
     }
@@ -378,7 +394,7 @@ mxArray* sparseSingle::rowColIndexing(const mxArray * const rowIndex, const mxAr
 
         if(this->transposed)
         {
-            throw(MexException("sparseSingle:implementationMissing","Transpose not implemented!"));
+            throw(MexException("sparseEigen:implementationMissing","Transpose not implemented!"));
         }
         else
         {            
@@ -406,14 +422,15 @@ mxArray* sparseSingle::rowColIndexing(const mxArray * const rowIndex, const mxAr
             std::shared_ptr<spMat_t> subSpMat = std::make_shared<spMat_t>(nRowIndices,nColIndices);
             //subSpMat->makeCompressed();
             (*subSpMat) = R*(*this->eigSpMatrix)*Q;
-            indexedSubMatrix = new sparseSingle(subSpMat); 
+            indexedSubMatrix = new sparseEigen(subSpMat); 
         }
     }
     
-    return convertPtr2Mat<sparseSingle>(indexedSubMatrix); 
+    return convertPtr2Mat<sparseEigen>(indexedSubMatrix); 
 }
 
-mxArray* sparseSingle::rowColAssignment(const mxArray * const rowIndex, const mxArray * const colIndex, const mxArray* assignedValues)
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::rowColAssignment(const mxArray * const rowIndex, const mxArray * const colIndex, const mxArray* assignedValues)
 {
     
     mwSize nRowIx = mxGetNumberOfElements(rowIndex);
@@ -428,21 +445,21 @@ mxArray* sparseSingle::rowColAssignment(const mxArray * const rowIndex, const mx
 
     mxArray* returnedSparse = nullptr;
 
-    //This might be a sparseSingle matrix, try it out
+    //This might be a sparseEigen matrix, try it out
     if (mxTypeValues == mxUINT64_CLASS && isScalar)
     {
         
-        sparseSingle* newValues = nullptr;
+        sparseEigen* newValues = nullptr;
 
         try 
         {
-            newValues = convertMat2Ptr<sparseSingle>(assignedValues);
+            newValues = convertMat2Ptr<sparseEigen>(assignedValues);
         }
         catch (MexException& e)
         {
             std::string id(e.id());
             if (id.compare("classHandle:invalidHandle")) //Later we could allow uint64 operations as well, but I advise against this
-                throw(MexException("sparseSingle:wrongDataType","Assigning uint64 is not supported!"));
+                throw(MexException("sparseEigen:wrongDataType","Assigning uint64 is not supported!"));
             else            
                 throw;
         }
@@ -451,7 +468,7 @@ mxArray* sparseSingle::rowColAssignment(const mxArray * const rowIndex, const mx
             throw;
         }
 
-        throw(MexException("sparseSingle::implementationMissing","Sparse assignment not yet implemented!"));
+        throw(MexException("sparseEigen<index_t,value_t>::implementationMissing","Sparse assignment not yet implemented!"));
         return nullptr;
     }
 
@@ -461,12 +478,12 @@ mxArray* sparseSingle::rowColAssignment(const mxArray * const rowIndex, const mx
         mwSize colIx = mwSize(mxGetScalar(colIndex)) - 1;
         float  value = float(mxGetScalar(assignedValues));
         
-        sparseSingle* newMatrixPtr;
+        sparseEigen* newMatrixPtr;
         //We are assigning into the only instance of the matrix, so lets modify directly
         if (this->eigSpMatrix.use_count() == 1)
-            newMatrixPtr = new sparseSingle(this->eigSpMatrix); //We use the shared_ptr
+            newMatrixPtr = new sparseEigen(this->eigSpMatrix); //We use the shared_ptr
         else
-            newMatrixPtr = new sparseSingle(std::as_const(*this)); //We create a full copy such that other instance are unaffected
+            newMatrixPtr = new sparseEigen(std::as_const(*this)); //We create a full copy such that other instance are unaffected
     
         if (newMatrixPtr->transposed)
             newMatrixPtr->eigSpMatrix->coeffRef(colIx,rowIx) = value;
@@ -475,19 +492,19 @@ mxArray* sparseSingle::rowColAssignment(const mxArray * const rowIndex, const mx
 
         newMatrixPtr->eigSpMatrix->makeCompressed();
 
-        return convertPtr2Mat<sparseSingle>(newMatrixPtr);        
+        return convertPtr2Mat<sparseEigen>(newMatrixPtr);        
     }
 
     //I am not sure about this, because we could also assign the same value to multiple locations?
     //if (nRowIx != nColIx || nColIx != nValues)
-        //throw(MexException("sparseSingle::rowColAssignment:wrongInputSize","Index and value dimension needs to agree!"));
+        //throw(MexException("sparseEigen<index_t,value_t>::rowColAssignment:wrongInputSize","Index and value dimension needs to agree!"));
     
     //Check if we are indexing a block
     bool consecutiveRows = false;
     bool consecutiveCols = false;
 
-    sparseSingle::Matlab2EigenIndexListConverter rowIndices4Eigen(rowIndex);
-    sparseSingle::Matlab2EigenIndexListConverter colIndices4Eigen(colIndex);
+    sparseEigen<index_t,value_t>::Matlab2EigenIndexListConverter rowIndices4Eigen(rowIndex);
+    sparseEigen<index_t,value_t>::Matlab2EigenIndexListConverter colIndices4Eigen(colIndex);
 
     const double * const rowIndexData = rowIndices4Eigen.data();
     const double * const colIndexData = colIndices4Eigen.data();
@@ -511,10 +528,11 @@ mxArray* sparseSingle::rowColAssignment(const mxArray * const rowIndex, const mx
     #endif
 
     
-    throw(MexException("sparseSingle:implementationMissing","Subscripted assignment has not been implemented yet!"));
+    throw(MexException("sparseEigen:implementationMissing","Subscripted assignment has not been implemented yet!"));
 }
 
-sparseSingle* sparseSingle::allValues() const 
+template <typename index_t, typename value_t>
+sparseEigen<index_t,value_t>* sparseEigen<index_t,value_t>::allValues() const 
 {
     index_t numValues = this->getRows()*this->getCols();
     index_t nnz = this->getNnz();
@@ -526,7 +544,7 @@ sparseSingle* sparseSingle::allValues() const
 
     //Sanity Check
     if (!(this->eigSpMatrix->isCompressed()))
-        throw(MexException("sparseSingle:invalidMatrixState","The matrix is not compressed! This is unexpected behavior!"));
+        throw(MexException("sparseEigen:invalidMatrixState","The matrix is not compressed! This is unexpected behavior!"));
 
     std::copy(std::execution::par_unseq,this->eigSpMatrix->valuePtr(),this->eigSpMatrix->valuePtr() + nnz, subSpMat->valuePtr());
     subSpMat->outerIndexPtr()[0] = index_t(0);
@@ -563,12 +581,13 @@ sparseSingle* sparseSingle::allValues() const
         }               
     }                      
 
-    sparseSingle* indexedMatrix = new sparseSingle(subSpMat);
+    sparseEigen* indexedMatrix = new sparseEigen(subSpMat);
 
     return indexedMatrix;
 }
 
-mxArray* sparseSingle::find() const 
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::find() const 
 {
     mxArray* findLin = mxCreateDoubleMatrix(this->getNnz(),1,mxREAL);
     double* findLinData = mxGetDoubles(findLin);
@@ -587,7 +606,7 @@ mxArray* sparseSingle::find() const
             }
 
         if (count != this->getNnz())
-            throw(MexException("sparseSingle:find:invalidDataStructure","For some reason, we found more or less nonzeros than expected!"));
+            throw(MexException("sparseEigen:find:invalidDataStructure","For some reason, we found more or less nonzeros than expected!"));
 
         std::sort(std::execution::par_unseq,findLinData,findLinData + count);
     }   
@@ -602,13 +621,14 @@ mxArray* sparseSingle::find() const
             }
         
         if (count != this->getNnz())
-            throw(MexException("sparseSingle:find:invalidDataStructure","For some reason, we found more or less nonzeros than expected!"));
+            throw(MexException("sparseEigen:find:invalidDataStructure","For some reason, we found more or less nonzeros than expected!"));
     }
 
     return findLin;
 }
 
-void sparseSingle::disp() const 
+template <typename index_t, typename value_t>
+void sparseEigen<index_t,value_t>::disp() const 
 {
     if (this->getNnz() == 0)
     {
@@ -635,12 +655,13 @@ void sparseSingle::disp() const
     }
 }
 
-mxArray* sparseSingle::linearIndexing(const mxArray* indexList) const 
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::linearIndexing(const mxArray* indexList) const 
 {
     //First check if it is indeed an index list or a colon operator
     mxClassID ixType = mxGetClassID(indexList);
 
-    sparseSingle* result = nullptr;
+    sparseEigen* result = nullptr;
 
     if (ixType == mxCHAR_CLASS) // We have a colon operator
         result = this->allValues();
@@ -652,7 +673,7 @@ mxArray* sparseSingle::linearIndexing(const mxArray* indexList) const
         //Normal double indexing list
         mwSize nDim = mxGetNumberOfDimensions(indexList);
         if (nDim > 2)
-            throw(MexException("sparseSingle:invalidIndex","Indexing list has dimensionality bigger than 2!"));
+            throw(MexException("sparseEigen:invalidIndex","Indexing list has dimensionality bigger than 2!"));
     
         const mwSize* ixDim = mxGetDimensions(indexList);
 
@@ -670,7 +691,7 @@ mxArray* sparseSingle::linearIndexing(const mxArray* indexList) const
             isColumnVector = true;
         }
         else
-            throw(MexException("sparseSingle:implementationMissing","Only vector index lists are implemented for now!"));
+            throw(MexException("sparseEigen:implementationMissing","Only vector index lists are implemented for now!"));
 
         index_t nnz = this->getNnz();
 
@@ -698,8 +719,8 @@ mxArray* sparseSingle::linearIndexing(const mxArray* indexList) const
         }
         else{
             
-            std::vector<sparseSingle::index_t> tmpInnerIndex(nnz);
-            std::array<sparseSingle::index_t,2> tmpOuterIndex;
+            std::vector<index_t> tmpInnerIndex(nnz);
+            std::array<index_t,2> tmpOuterIndex;
             tmpOuterIndex[0] = 0;
             tmpOuterIndex[1] = nnz;
             if (this->transposed)  
@@ -831,35 +852,39 @@ mxArray* sparseSingle::linearIndexing(const mxArray* indexList) const
                 */
             }                 
         }
-        result = new sparseSingle(subSpMat);  
+        result = new sparseEigen(subSpMat);  
 
         if (!isColumnVector)   
             result->transposed = true;
     }
     else{
-        throw(MexException("sparseSingle:invalidIndex","Unsupported index type!"));
+        throw(MexException("sparseEigen:invalidIndex","Unsupported index type!"));
     }
 
-    return convertPtr2Mat<sparseSingle>(result);
+    return convertPtr2Mat<sparseEigen>(result);
 
 }
 
-sparseSingle::index_t sparseSingle::toLinearIndex(const sparseSingle::index_t row, const sparseSingle::index_t col) const
+template <typename index_t, typename value_t>
+index_t sparseEigen<index_t,value_t>::toLinearIndex(const index_t row, const index_t col) const
 {
     return this->getRows()*col + row;
 }
 
-sparseSingle::index_t sparseSingle::linearIndexToColIndex(const sparseSingle::index_t linIx) const
+template <typename index_t, typename value_t>
+index_t sparseEigen<index_t,value_t>::linearIndexToColIndex(const index_t linIx) const
 {
     return linIx / this->getRows();        
 }
 
-sparseSingle::index_t sparseSingle::linearIndexToRowIndex(const sparseSingle::index_t linIx) const
+template <typename index_t, typename value_t>
+index_t sparseEigen<index_t,value_t>::linearIndexToRowIndex(const index_t linIx) const
 {
     return linIx % this->getRows();        
 }
 
-mxArray* sparseSingle::full() const 
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::full() const 
 {
     mxArray* fullMatrix = mxCreateNumericMatrix(this->getRows(),this->getCols(),mxSINGLE_CLASS,mxREAL);
     mxSingle* fullMatrix_data = mxGetSingles(fullMatrix);
@@ -874,7 +899,8 @@ mxArray* sparseSingle::full() const
     return fullMatrix;
 }
 
-mxArray* sparseSingle::elementWiseBinaryOperation(const mxArray* operand, const ElementWiseOperation& op) const
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::elementWiseBinaryOperation(const mxArray* operand, const ElementWiseOperation& op) const
 {    
     mxClassID mxType = mxGetClassID(operand);
     //Check if it is a sparse single
@@ -904,7 +930,7 @@ mxArray* sparseSingle::elementWiseBinaryOperation(const mxArray* operand, const 
             opName += "hadamard product";
             break;
         default:
-            throw(MexException("sparseSingle:unkownOperation","Binary elementwise matrix operation not known!"));        
+            throw(MexException("sparseEigen:unkownOperation","Binary elementwise matrix operation not known!"));        
     }
 
             
@@ -913,19 +939,19 @@ mxArray* sparseSingle::elementWiseBinaryOperation(const mxArray* operand, const 
 
     if (mxType == mxUINT64_CLASS && isScalar)
     {
-        //This might be a sparseSingle matrix
+        //This might be a sparseEigen matrix
         
-        sparseSingle* operandSpS = nullptr;
+        sparseEigen* operandSpS = nullptr;
 
         try 
         {
-            operandSpS = convertMat2Ptr<sparseSingle>(operand);
+            operandSpS = convertMat2Ptr<sparseEigen>(operand);
         }
         catch (MexException& e)
         {
             std::string id(e.id());
             if (id.compare("classHandle:invalidHandle")) //Later we could allow uint64 operations as well, but I advise against this
-                throw(MexException("sparseSingle:wrongDataType",opName + " only implemented for single/double!"));
+                throw(MexException("sparseEigen:wrongDataType",opName + " only implemented for single/double!"));
             else            
                 throw;
         }
@@ -943,7 +969,7 @@ mxArray* sparseSingle::elementWiseBinaryOperation(const mxArray* operand, const 
 
         if (isScalar)
         {
-            throw(MexException("sparseSingle:missingImplementation",opName + " not implemented for scalar sparse matrix!"));
+            throw(MexException("sparseEigen:missingImplementation",opName + " not implemented for scalar sparse matrix!"));
         }
         else if (sizeMatch)
         {            
@@ -960,7 +986,7 @@ mxArray* sparseSingle::elementWiseBinaryOperation(const mxArray* operand, const 
                     else if (!this->transposed && operandSpS->transposed)
                         *resultSparse = (*this->eigSpMatrix + spMat_t(operandSpS->eigSpMatrix->transpose())).pruned();
                     else
-                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                        throw(MexException("sparseEigen:failingSanityCheck",opName + " failed sanity check!"));
                     break;                    
                 
                 case ELEMENTWISE_MINUS_R:
@@ -973,7 +999,7 @@ mxArray* sparseSingle::elementWiseBinaryOperation(const mxArray* operand, const 
                     else if (!this->transposed && operandSpS->transposed)
                         *resultSparse = (*this->eigSpMatrix - spMat_t(operandSpS->eigSpMatrix->transpose())).pruned();
                     else
-                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                        throw(MexException("sparseEigen:failingSanityCheck",opName + " failed sanity check!"));
                     break;
                 
                 case ELEMENTWISE_MINUS_L:
@@ -986,7 +1012,7 @@ mxArray* sparseSingle::elementWiseBinaryOperation(const mxArray* operand, const 
                     else if (!this->transposed && operandSpS->transposed)
                         *resultSparse = (spMat_t(operandSpS->eigSpMatrix->transpose()) - *this->eigSpMatrix).pruned();
                     else
-                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                        throw(MexException("sparseEigen:failingSanityCheck",opName + " failed sanity check!"));
                     break;
                 
                 case ELEMENTWISE_DIVIDE_L:
@@ -999,7 +1025,7 @@ mxArray* sparseSingle::elementWiseBinaryOperation(const mxArray* operand, const 
                     else if (!this->transposed && operandSpS->transposed)
                         *resultSparse = spMat_t(operandSpS->eigSpMatrix->transpose()).cwiseQuotient(*this->eigSpMatrix);
                     else
-                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                        throw(MexException("sparseEigen:failingSanityCheck",opName + " failed sanity check!"));
                     break;
                 
                 case ELEMENTWISE_DIVIDE_R:
@@ -1012,7 +1038,7 @@ mxArray* sparseSingle::elementWiseBinaryOperation(const mxArray* operand, const 
                     else if (!this->transposed && operandSpS->transposed)
                         *resultSparse = this->eigSpMatrix->cwiseQuotient(spMat_t(operandSpS->eigSpMatrix->transpose()));
                     else
-                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                        throw(MexException("sparseEigen:failingSanityCheck",opName + " failed sanity check!"));
                     break;
                 
                 case ELEMENTWISE_TIMES:
@@ -1025,28 +1051,28 @@ mxArray* sparseSingle::elementWiseBinaryOperation(const mxArray* operand, const 
                     else if (!this->transposed && operandSpS->transposed)
                         *resultSparse = this->eigSpMatrix->cwiseProduct(spMat_t(operandSpS->eigSpMatrix->transpose())).pruned();
                     else
-                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                        throw(MexException("sparseEigen:failingSanityCheck",opName + " failed sanity check!"));
                     break;
                 
                 default:
-                    throw(MexException("sparseSingle:unkownOperation","Binary elementwise matrix operation not known!"));  
+                    throw(MexException("sparseEigen:unkownOperation","Binary elementwise matrix operation not known!"));  
             }
-            sparseSingle* resultSparseSingle = new sparseSingle(resultSparse); 
+            sparseEigen* resultsparseEigen = new sparseEigen(resultSparse); 
 
-            resultMatrix = convertPtr2Mat<sparseSingle>(resultSparseSingle);
+            resultMatrix = convertPtr2Mat<sparseEigen>(resultsparseEigen);
         }
         else
-            throw(MexException("sparseSingle:wrongOperandSize",opName + "only implemented for same shape! Implicit expansion not yet supported!"));
+            throw(MexException("sparseEigen:wrongOperandSize",opName + "only implemented for same shape! Implicit expansion not yet supported!"));
     }  
     else{
         bool sizeMatch = (m == this->getRows()) & (n == this->getCols()); 
     
 
         if (mxType != mxSINGLE_CLASS && !isScalar)
-            throw(MexException("sparseSingle:wrongDataType",opName + " only implemented for single/double!"));      
+            throw(MexException("sparseEigen:wrongDataType",opName + " only implemented for single/double!"));      
         
         if (!isScalar && !sizeMatch)
-            throw(MexException("sparseSingle:wrongOperandSize",opName + "only implemented for scalars and same shape! Implicit expansion not yet supported!"));
+            throw(MexException("sparseEigen:wrongOperandSize",opName + "only implemented for scalars and same shape! Implicit expansion not yet supported!"));
 
 
 
@@ -1077,7 +1103,7 @@ mxArray* sparseSingle::elementWiseBinaryOperation(const mxArray* operand, const 
                         resultMatrixMap.array() -= scalar;
                         break;
                     default:
-                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                        throw(MexException("sparseEigen:failingSanityCheck",opName + " failed sanity check!"));
                 }
             }
             else if (op == ELEMENTWISE_DIVIDE_L || ELEMENTWISE_DIVIDE_R || ELEMENTWISE_TIMES)
@@ -1107,14 +1133,14 @@ mxArray* sparseSingle::elementWiseBinaryOperation(const mxArray* operand, const 
                         break;
 
                     default:
-                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                        throw(MexException("sparseEigen:failingSanityCheck",opName + " failed sanity check!"));
                 }
-                sparseSingle* resultSparseSingle = new sparseSingle(resultSparse); 
+                sparseEigen* resultsparseEigen = new sparseEigen(resultSparse); 
 
-                resultMatrix = convertPtr2Mat<sparseSingle>(resultSparseSingle);
+                resultMatrix = convertPtr2Mat<sparseEigen>(resultsparseEigen);
             }            
             else{
-                throw(MexException("sparseSingle::failingSanityCheck",opName + " failed sanity check!"));
+                throw(MexException("sparseEigen<index_t,value_t>::failingSanityCheck",opName + " failed sanity check!"));
             }
         }
         else if (sizeMatch)   //sparse matrix & dense matrix operation     
@@ -1181,19 +1207,20 @@ mxArray* sparseSingle::elementWiseBinaryOperation(const mxArray* operand, const 
                     
 
                     default:
-                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                        throw(MexException("sparseEigen:failingSanityCheck",opName + " failed sanity check!"));
                 }
 
         }            
         else
-            throw(MexException("sparseSingle:wrongOperandSize",opName + "only implemented for scalars and same shape! Implicit expansion not yet supported!"));
+            throw(MexException("sparseEigen:wrongOperandSize",opName + "only implemented for scalars and same shape! Implicit expansion not yet supported!"));
 
     }
 
     return resultMatrix;
 }
 
-mxArray* sparseSingle::elementWiseComparison(const mxArray* operand, const ElementWiseComparison& op) const
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::elementWiseComparison(const mxArray* operand, const ElementWiseComparison& op) const
 {    
     mxClassID mxType = mxGetClassID(operand);
     //Check if it is a sparse single
@@ -1227,7 +1254,7 @@ mxArray* sparseSingle::elementWiseComparison(const mxArray* operand, const Eleme
             opName += "<=";
             break;
         default:
-            throw(MexException("sparseSingle:unkownOperation","Elementwise comparison not known!"));        
+            throw(MexException("sparseEigen:unkownOperation","Elementwise comparison not known!"));        
     }
 
             
@@ -1236,19 +1263,19 @@ mxArray* sparseSingle::elementWiseComparison(const mxArray* operand, const Eleme
 
     if (mxType == mxUINT64_CLASS && isScalar)
     {
-        //This might be a sparseSingle matrix
+        //This might be a sparseEigen matrix
         
-        sparseSingle* operandSpS = nullptr;
+        sparseEigen* operandSpS = nullptr;
 
         try 
         {
-            operandSpS = convertMat2Ptr<sparseSingle>(operand);
+            operandSpS = convertMat2Ptr<sparseEigen>(operand);
         }
         catch (MexException& e)
         {
             std::string id(e.id());
             if (id.compare("classHandle:invalidHandle")) //Later we could allow uint64 operations as well, but I advise against this
-                throw(MexException("sparseSingle:wrongDataType",opName + " only implemented for single/double!"));
+                throw(MexException("sparseEigen:wrongDataType",opName + " only implemented for single/double!"));
             else            
                 throw;
         }
@@ -1266,7 +1293,7 @@ mxArray* sparseSingle::elementWiseComparison(const mxArray* operand, const Eleme
 
         if (isScalar)
         {
-            throw(MexException("sparseSingle:missingImplementation",opName + " not implemented for scalar sparse matrix!"));
+            throw(MexException("sparseEigen:missingImplementation",opName + " not implemented for scalar sparse matrix!"));
         }
         else if (sizeMatch)
         {            
@@ -1291,30 +1318,30 @@ mxArray* sparseSingle::elementWiseComparison(const mxArray* operand, const Eleme
                         resultSparseLogical = this->eigSpMatrix->cwiseEqual(tmpTransposed);
                     }
                     else
-                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                        throw(MexException("sparseEigen:failingSanityCheck",opName + " failed sanity check!"));
                     break;                    
                 
                 default:
-                    throw(MexException("sparseSingle:unkownOperation","Binary elementwise matrix operation not known!"));  
+                    throw(MexException("sparseEigen:unkownOperation","Binary elementwise matrix operation not known!"));  
             }
-            //sparseSingle* resultSparseSingle = new sparseSingle(resultSparse); 
+            //sparseEigen* resultsparseEigen = new sparseEigen(resultSparse); 
             resultSparseLogical.makeCompressed();
             resultMatrix = mxCreateSparseLogicalMatrix(resultSparseLogical.rows(),resultSparseLogical.cols(),0);
 
-            //resultMatrix = convertPtr2Mat<sparseSingle>(resultSparseSingle);
+            //resultMatrix = convertPtr2Mat<sparseEigen>(resultsparseEigen);
         }
         else
-            throw(MexException("sparseSingle:wrongOperandSize",opName + "only implemented for same shape! Implicit expansion not yet supported!"));
+            throw(MexException("sparseEigen:wrongOperandSize",opName + "only implemented for same shape! Implicit expansion not yet supported!"));
     }  
     else{
         bool sizeMatch = (m == this->getRows()) & (n == this->getCols()); 
     
 
         if (mxType != mxSINGLE_CLASS && !isScalar)
-            throw(MexException("sparseSingle:wrongDataType",opName + " only implemented for single/double!"));      
+            throw(MexException("sparseEigen:wrongDataType",opName + " only implemented for single/double!"));      
         
         if (!isScalar && !sizeMatch)
-            throw(MexException("sparseSingle:wrongOperandSize",opName + "only implemented for scalars and same shape! Implicit expansion not yet supported!"));
+            throw(MexException("sparseEigen:wrongOperandSize",opName + "only implemented for scalars and same shape! Implicit expansion not yet supported!"));
 
 
 
@@ -1345,7 +1372,7 @@ mxArray* sparseSingle::elementWiseComparison(const mxArray* operand, const Eleme
                         resultMatrixMap.array() -= scalar;
                         break;
                     default:
-                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                        throw(MexException("sparseEigen:failingSanityCheck",opName + " failed sanity check!"));
                 }
             }
             else if (op == ELEMENTWISE_DIVIDE_L || ELEMENTWISE_DIVIDE_R || ELEMENTWISE_TIMES)
@@ -1375,14 +1402,14 @@ mxArray* sparseSingle::elementWiseComparison(const mxArray* operand, const Eleme
                         break;
 
                     default:
-                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                        throw(MexException("sparseEigen:failingSanityCheck",opName + " failed sanity check!"));
                 }
-                sparseSingle* resultSparseSingle = new sparseSingle(resultSparse); 
+                sparseEigen* resultsparseEigen = new sparseEigen(resultSparse); 
 
-                resultMatrix = convertPtr2Mat<sparseSingle>(resultSparseSingle);
+                resultMatrix = convertPtr2Mat<sparseEigen>(resultsparseEigen);
             }            
             else{
-                throw(MexException("sparseSingle::failingSanityCheck",opName + " failed sanity check!"));
+                throw(MexException("sparseEigen<index_t,value_t>::failingSanityCheck",opName + " failed sanity check!"));
             }
         }
         else if (sizeMatch)   //sparse matrix & dense matrix operation     
@@ -1449,65 +1476,70 @@ mxArray* sparseSingle::elementWiseComparison(const mxArray* operand, const Eleme
                     
 
                     default:
-                        throw(MexException("sparseSingle:failingSanityCheck",opName + " failed sanity check!"));
+                        throw(MexException("sparseEigen:failingSanityCheck",opName + " failed sanity check!"));
                 }
 
         }            
         else
-            throw(MexException("sparseSingle:wrongOperandSize",opName + "only implemented for scalars and same shape! Implicit expansion not yet supported!"));
+            throw(MexException("sparseEigen:wrongOperandSize",opName + "only implemented for scalars and same shape! Implicit expansion not yet supported!"));
 
     }
 
     return resultMatrix;
 }
 
-
-mxArray* sparseSingle::plus(const mxArray* summand) const
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::plus(const mxArray* summand) const
 {
     return this->elementWiseBinaryOperation(summand,ElementWiseOperation::ELEMENTWISE_PLUS);
 }
 
-mxArray* sparseSingle::minusAsMinuend(const mxArray* subtrahend) const
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::minusAsMinuend(const mxArray* subtrahend) const
 {
     return this->elementWiseBinaryOperation(subtrahend,ElementWiseOperation::ELEMENTWISE_MINUS_R);
 }
 
-mxArray* sparseSingle::minusAsSubtrahend(const mxArray* minuend) const
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::minusAsSubtrahend(const mxArray* minuend) const
 {
     return this->elementWiseBinaryOperation(minuend,ElementWiseOperation::ELEMENTWISE_MINUS_L);
 }
 
-mxArray* sparseSingle::times(const mxArray* product) const
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::times(const mxArray* product) const
 {
     return this->elementWiseBinaryOperation(product,ElementWiseOperation::ELEMENTWISE_TIMES);
 }
 
-
-mxArray* sparseSingle::rdivide(const mxArray* divisor) const
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::rdivide(const mxArray* divisor) const
 {
     return this->elementWiseBinaryOperation(divisor,ElementWiseOperation::ELEMENTWISE_DIVIDE_R);
 }
 
-mxArray* sparseSingle::ldivide(const mxArray* dividend) const
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::ldivide(const mxArray* dividend) const
 {
     return this->elementWiseBinaryOperation(dividend,ElementWiseOperation::ELEMENTWISE_DIVIDE_L);
 }
 
-mxArray* sparseSingle::uminus() const
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::uminus() const
 {
     const spMat_t& refMatrix = *this->eigSpMatrix;   
     
     std::shared_ptr<spMat_t> newEigenMatrix = std::make_shared<spMat_t>(-refMatrix);
     
-    sparseSingle* retMatrix = new sparseSingle(newEigenMatrix);
+    sparseEigen* retMatrix = new sparseEigen(newEigenMatrix);
     retMatrix->transposed = this->transposed;
     
     return convertPtr2Mat(retMatrix);
 }
 
 //// Linear Algebra ////
-
-mxArray* sparseSingle::mtimesr(const mxArray* rightFactor) const
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::mtimesr(const mxArray* rightFactor) const
 {
     mxClassID mxType = mxGetClassID(rightFactor);
     //Check if it is a sparse single
@@ -1521,19 +1553,19 @@ mxArray* sparseSingle::mtimesr(const mxArray* rightFactor) const
 
     if (mxType == mxUINT64_CLASS && isScalar)
     {
-        //This might be a sparseSingle matrix
+        //This might be a sparseEigen matrix
         
-        sparseSingle* rightFactorSpS = nullptr;
+        sparseEigen* rightFactorSpS = nullptr;
 
         try 
         {
-            rightFactorSpS = convertMat2Ptr<sparseSingle>(rightFactor);
+            rightFactorSpS = convertMat2Ptr<sparseEigen>(rightFactor);
         }
         catch (MexException& e)
         {
             std::string id(e.id());
             if (id.compare("classHandle:invalidHandle")) //Later we could allow uint64 operations as well, but I advise against this
-                throw(MexException("sparseSingle:wrongDataType","Matrix multiplication only implemented for single!"));
+                throw(MexException("sparseEigen:wrongDataType","Matrix multiplication only implemented for single!"));
             else            
                 throw;
         }
@@ -1546,7 +1578,7 @@ mxArray* sparseSingle::mtimesr(const mxArray* rightFactor) const
         isScalar = (rightFactorSpS->getRows() == rightFactorSpS->getCols()) && (rightFactorSpS->getCols() == 1);
 
         if (!sizeMatch && !isScalar)
-            throw(MexException("sparseSingle:wrongOperandSize"," Matrix multiplication only implemented for same shape! Implicit expansion not yet supported!"));
+            throw(MexException("sparseEigen:wrongOperandSize"," Matrix multiplication only implemented for same shape! Implicit expansion not yet supported!"));
         else if (isScalar) //Shortcut to the elementwise function
             return this->elementWiseBinaryOperation(rightFactor,ElementWiseOperation::ELEMENTWISE_TIMES);
         else 
@@ -1561,7 +1593,7 @@ mxArray* sparseSingle::mtimesr(const mxArray* rightFactor) const
             else 
                 *newMatrix = ((*this->eigSpMatrix) * (*rightFactorSpS->eigSpMatrix)).pruned();
                         
-            resultMatrix = convertPtr2Mat<sparseSingle>(new sparseSingle(newMatrix));
+            resultMatrix = convertPtr2Mat<sparseEigen>(new sparseEigen(newMatrix));
         }
     }
     else if (mxType == mxSINGLE_CLASS || mxType == mxDOUBLE_CLASS)
@@ -1605,19 +1637,20 @@ mxArray* sparseSingle::mtimesr(const mxArray* rightFactor) const
                     resultMap = (*this->eigSpMatrix) * factorMatrixMap.cast<float>();                     
             }
             else
-                throw(MexException("sparseSingle:failingSanityCheck","Matrix multiplication failed sanity check!"));
+                throw(MexException("sparseEigen:failingSanityCheck","Matrix multiplication failed sanity check!"));
             
         }
         else
-            throw(MexException("sparseSingle:wrongOperandSize"," Matrix multiplication only implemented for same shape or scalar! Implicit expansion not yet supported!"));
+            throw(MexException("sparseEigen:wrongOperandSize"," Matrix multiplication only implemented for same shape or scalar! Implicit expansion not yet supported!"));
     }
     else
-        throw(MexException("sparseSingle:wrongDataType","Matrix multiplication only implemented for single!"));
+        throw(MexException("sparseEigen:wrongDataType","Matrix multiplication only implemented for single!"));
     
     return resultMatrix;        
 }
 
-mxArray* sparseSingle::mtimesl(const mxArray* leftFactor) const
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::mtimesl(const mxArray* leftFactor) const
 {
     mxClassID mxType = mxGetClassID(leftFactor);
     //Check if it is a sparse single
@@ -1631,19 +1664,19 @@ mxArray* sparseSingle::mtimesl(const mxArray* leftFactor) const
 
     if (mxType == mxUINT64_CLASS && isScalar)
     {
-        //This might be a sparseSingle matrix
+        //This might be a sparseEigen matrix
         
-        sparseSingle* leftFactorSpS = nullptr;
+        sparseEigen* leftFactorSpS = nullptr;
 
         try 
         {
-            leftFactorSpS = convertMat2Ptr<sparseSingle>(leftFactor);
+            leftFactorSpS = convertMat2Ptr<sparseEigen>(leftFactor);
         }
         catch (MexException& e)
         {
             std::string id(e.id());
             if (id.compare("classHandle:invalidHandle")) //Later we could allow uint64 operations as well, but I advise against this
-                throw(MexException("sparseSingle:wrongDataType","Matrix multiplication only implemented for single!"));
+                throw(MexException("sparseEigen:wrongDataType","Matrix multiplication only implemented for single!"));
             else            
                 throw;
         }
@@ -1656,7 +1689,7 @@ mxArray* sparseSingle::mtimesl(const mxArray* leftFactor) const
         isScalar = (leftFactorSpS->getRows() == leftFactorSpS->getCols()) && (leftFactorSpS->getCols() == 1);
 
         if (!sizeMatch && !isScalar)
-            throw(MexException("sparseSingle:wrongOperandSize"," Matrix multiplication only implemented for same shape! Implicit expansion not yet supported!"));
+            throw(MexException("sparseEigen:wrongOperandSize"," Matrix multiplication only implemented for same shape! Implicit expansion not yet supported!"));
         else if (isScalar) //Shortcut to the elementwise function
             return this->elementWiseBinaryOperation(leftFactor,ElementWiseOperation::ELEMENTWISE_TIMES);
         else 
@@ -1671,7 +1704,7 @@ mxArray* sparseSingle::mtimesl(const mxArray* leftFactor) const
             else 
                 *newMatrix = ((*leftFactorSpS->eigSpMatrix)*(*this->eigSpMatrix)).pruned();
                         
-            resultMatrix = convertPtr2Mat<sparseSingle>(new sparseSingle(newMatrix));
+            resultMatrix = convertPtr2Mat<sparseEigen>(new sparseEigen(newMatrix));
         }
     }
     else if (mxType == mxSINGLE_CLASS || mxType == mxDOUBLE_CLASS)
@@ -1717,18 +1750,19 @@ mxArray* sparseSingle::mtimesl(const mxArray* leftFactor) const
 
             }
             else
-                throw(MexException("sparseSingle:wrongDataType","Matrix multiplication only implemented for single!"));     
+                throw(MexException("sparseEigen:wrongDataType","Matrix multiplication only implemented for single!"));     
         }
         else
-            throw(MexException("sparseSingle:wrongOperandSize"," Matrix multiplication only implemented for same shape or scalar! Implicit expansion not yet supported!"));
+            throw(MexException("sparseEigen:wrongOperandSize"," Matrix multiplication only implemented for same shape or scalar! Implicit expansion not yet supported!"));
     }
     else
-        throw(MexException("sparseSingle:wrongDataType","Matrix multiplication only implemented for single!"));
+        throw(MexException("sparseEigen:wrongDataType","Matrix multiplication only implemented for single!"));
     
     return resultMatrix;        
 }
 
-mxArray* sparseSingle::mldivide(const mxArray* b) const
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::mldivide(const mxArray* b) const
 {
     mxClassID mxType = mxGetClassID(b);
     //Check if it is a sparse single
@@ -1740,21 +1774,21 @@ mxArray* sparseSingle::mldivide(const mxArray* b) const
 
     mxArray* resultMatrix;
 
-    //This might be a sparseSingle matrix, try it out
+    //This might be a sparseEigen matrix, try it out
     if (mxType == mxUINT64_CLASS && isScalar)
     {
         
-        sparseSingle* bSpS = nullptr;
+        sparseEigen* bSpS = nullptr;
 
         try 
         {
-            bSpS = convertMat2Ptr<sparseSingle>(b);
+            bSpS = convertMat2Ptr<sparseEigen>(b);
         }
         catch (MexException& e)
         {
             std::string id(e.id());
             if (id.compare("classHandle:invalidHandle")) //Later we could allow uint64 operations as well, but I advise against this
-                throw(MexException("sparseSingle:wrongDataType","mldivide only implemented for single!"));
+                throw(MexException("sparseEigen:wrongDataType","mldivide only implemented for single!"));
             else            
                 throw;
         }
@@ -1793,7 +1827,7 @@ mxArray* sparseSingle::mldivide(const mxArray* b) const
             info = solverLU.info();
             this->reportSolverInfo(info);
                         
-            resultMatrix = convertPtr2Mat<sparseSingle>(new sparseSingle(x));
+            resultMatrix = convertPtr2Mat<sparseEigen>(new sparseEigen(x));
         }
         else if (sizeMatch)
         {
@@ -1818,10 +1852,10 @@ mxArray* sparseSingle::mldivide(const mxArray* b) const
             info = solverQR.info();
             this->reportSolverInfo(info);
                         
-            resultMatrix = convertPtr2Mat<sparseSingle>(new sparseSingle(x));
+            resultMatrix = convertPtr2Mat<sparseEigen>(new sparseEigen(x));
         }
         else
-            throw(MexException("sparseSingle:wrongOperandSize"," Matrix multiplication only implemented for same shape! Implicit expansion not yet supported!"));
+            throw(MexException("sparseEigen:wrongOperandSize"," Matrix multiplication only implemented for same shape! Implicit expansion not yet supported!"));
     }
     else if (mxType == mxSINGLE_CLASS || mxType == mxDOUBLE_CLASS)
     {
@@ -1888,7 +1922,7 @@ mxArray* sparseSingle::mldivide(const mxArray* b) const
                     info = solverLU.info();
                 }
                 else
-                    throw(MexException("sparseSingle:failingSanityCheck","Matrix multiplication failed sanity check!"));    
+                    throw(MexException("sparseEigen:failingSanityCheck","Matrix multiplication failed sanity check!"));    
             }
             else
             {
@@ -1920,36 +1954,38 @@ mxArray* sparseSingle::mldivide(const mxArray* b) const
                     info = solverQR.info();
                 }
                 else
-                    throw(MexException("sparseSingle:failingSanityCheck","Matrix multiplication failed sanity check!")); 
+                    throw(MexException("sparseEigen:failingSanityCheck","Matrix multiplication failed sanity check!")); 
             }
             this->reportSolverInfo(info);
         }
         else
-            throw(MexException("sparseSingle:wrongOperandSize"," Matrix multiplication only implemented for same shape! Implicit expansion not yet supported!"));
+            throw(MexException("sparseEigen:wrongOperandSize"," Matrix multiplication only implemented for same shape! Implicit expansion not yet supported!"));
     }
     return resultMatrix;
 }
 
-mxArray* sparseSingle::transpose() const 
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::transpose() const 
 {
-    sparseSingle* transposedCopy = new sparseSingle();
+    sparseEigen* transposedCopy = new sparseEigen();
     transposedCopy->transposed = !this->transposed;
     transposedCopy->eigSpMatrix = this->eigSpMatrix;
     //this->transposed = !this->transposed;
 
-    return convertPtr2Mat<sparseSingle>(transposedCopy);    
+    return convertPtr2Mat<sparseEigen>(transposedCopy);    
 }
 
-mxArray* sparseSingle::timesVec(const mxArray* vals_) const 
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::timesVec(const mxArray* vals_) const 
 {
     mwSize nCols = mxGetN(vals_); 
     mwSize nRows = mxGetM(vals_);
     if (nCols != 1 && nRows != 1)
-        throw(MexException("sparseSingle:timesVec:wrongOperand","Operand is not a vector!"));
+        throw(MexException("sparseEigen:timesVec:wrongOperand","Operand is not a vector!"));
     
-    sparseSingle::index_t n = mxGetNumberOfElements(vals_);
+    index_t n = mxGetNumberOfElements(vals_);
     if (n != this->getCols())
-        throw(MexException("sparseSingle:timesVec:wrongSize","Operand Vector has incompatible size!"));
+        throw(MexException("sparseEigen:timesVec:wrongSize","Operand Vector has incompatible size!"));
     
     const mxSingle* vals = mxGetSingles(vals_);
 
@@ -1973,7 +2009,7 @@ mxArray* sparseSingle::timesVec(const mxArray* vals_) const
 
             case WITHIN_COLUMN:
                 if (!(this-eigSpMatrix->isCompressed()))
-                    throw(MexException("sparseSingle:timesVec:notCompressed","Sparse Matrix is not compressed! This should not happen..."));
+                    throw(MexException("sparseEigen:timesVec:notCompressed","Sparse Matrix is not compressed! This should not happen..."));
                 
                 std::fill(std::execution::par_unseq,result_data,result_data + this->getRows(),0);
 
@@ -1996,7 +2032,7 @@ mxArray* sparseSingle::timesVec(const mxArray* vals_) const
 
             case ACROSS_COLUMN:
                 if (!(this-eigSpMatrix->isCompressed()))
-                    throw(MexException("sparseSingle:timesVec:notCompressed","Sparse Matrix is not compressed! This should not happen..."));
+                    throw(MexException("sparseEigen:timesVec:notCompressed","Sparse Matrix is not compressed! This should not happen..."));
 
                 std::fill(std::execution::par_unseq,result_data,result_data + this->getRows(),0);
 
@@ -2021,7 +2057,7 @@ mxArray* sparseSingle::timesVec(const mxArray* vals_) const
                 break;  
 
             default:
-                throw(MexException("sparseSingle:timesVec:invalidAlgorithm","Selected parallelization algorithm not known!"));
+                throw(MexException("sparseEigen:timesVec:invalidAlgorithm","Selected parallelization algorithm not known!"));
         }
         
     }
@@ -2030,16 +2066,17 @@ mxArray* sparseSingle::timesVec(const mxArray* vals_) const
     return result;
 }
 
-mxArray* sparseSingle::vecTimes(const mxArray* vals_) const 
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::vecTimes(const mxArray* vals_) const 
 {
     mwSize nCols = mxGetN(vals_); 
     mwSize nRows = mxGetM(vals_);
     if (nCols != 1 && nRows != 1)
-        throw(MexException("sparseSingle:vecTimes:wrongOperand","Operand is not a vector!"));
+        throw(MexException("sparseEigen:vecTimes:wrongOperand","Operand is not a vector!"));
     
-    sparseSingle::index_t n = mxGetNumberOfElements(vals_);
+    index_t n = mxGetNumberOfElements(vals_);
     if (n != this->getRows())
-        throw(MexException("sparseSingle:vecTimes:wrongSize","Operand Vector has incompatible size!"));
+        throw(MexException("sparseEigen:vecTimes:wrongSize","Operand Vector has incompatible size!"));
     
     const mxSingle* vals = mxGetSingles(vals_);
 
@@ -2061,10 +2098,11 @@ mxArray* sparseSingle::vecTimes(const mxArray* vals_) const
     return result;
 }
 
-mxArray* sparseSingle::timesScalar(const mxArray* val_) const
+template <typename index_t, typename value_t>
+mxArray* sparseEigen<index_t,value_t>::timesScalar(const mxArray* val_) const
 {
     if (!mxIsScalar(val_))
-        throw(MexException("sparseSingle:mexInterface:invalidMexCall:timesScalar","Input needs to be scalar!"));
+        throw(MexException("sparseEigen:mexInterface:invalidMexCall:timesScalar","Input needs to be scalar!"));
     const mxSingle* val = mxGetSingles(val_);
     mxSingle scalar = val[0];
     
@@ -2075,8 +2113,11 @@ mxArray* sparseSingle::timesScalar(const mxArray* val_) const
     (*scaledSpMat) = scalar*(*this->eigSpMatrix);
 
     //return the bare array
-    sparseSingle* scaledMatrix = new sparseSingle(scaledSpMat);
+    sparseEigen* scaledMatrix = new sparseEigen(scaledSpMat);
     scaledMatrix->transposed = this->transposed;
 
-    return convertPtr2Mat<sparseSingle>(scaledMatrix);    
+    return convertPtr2Mat<sparseEigen>(scaledMatrix);    
 }
+
+// Standard sparse single
+template class sparseEigen<int64_t,float>;

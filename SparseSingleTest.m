@@ -30,7 +30,7 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.fatalAssertEqual(nnz(tests),5);
             testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));
 
-            testCase.verifyError(@() SparseSingle("hello"),'sparseSingle:invalidInputType');
+            testCase.verifyError(@() SparseSingle("hello"),'sparseEigen:invalidInputType');
         end
 
         function test_constructFromSize(testCase)
@@ -42,11 +42,11 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));
 
             %Invalid Inputs
-            testCase.verifyError(@() SparseSingle([3 2],4),'sparseSingle:invalidInputType');
-            testCase.verifyError(@() SparseSingle([3 2],[2 3]),'sparseSingle:invalidInputType');
-            testCase.verifyError(@() SparseSingle(3,[2 3]),'sparseSingle:invalidInputType');
-            testCase.verifyError(@() SparseSingle("hello",1),'sparseSingle:invalidInputType');
-            testCase.verifyError(@() SparseSingle(1,"hello"),'sparseSingle:invalidInputType');
+            testCase.verifyError(@() SparseSingle([3 2],4),'sparseEigen:invalidInputType');
+            testCase.verifyError(@() SparseSingle([3 2],[2 3]),'sparseEigen:invalidInputType');
+            testCase.verifyError(@() SparseSingle(3,[2 3]),'sparseEigen:invalidInputType');
+            testCase.verifyError(@() SparseSingle("hello",1),'sparseEigen:invalidInputType');
+            testCase.verifyError(@() SparseSingle(1,"hello"),'sparseEigen:invalidInputType');
 
             %You can also construct sparse doubles from rows/columns given as char, uint, etc. in Matlab. Should we test that?
         end
@@ -66,9 +66,9 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.fatalAssertTrue(isa(tests,'numeric') && isa(tests,'single'));
 
             %Invalid Inputs
-            testCase.verifyError(@() SparseSingle([3 2],4,ones(1,2,'single')),'sparseSingle:invalidInputType');
-            testCase.verifyError(@() SparseSingle([3 2],[2 3],ones(1,2,'double')),'sparseSingle:invalidInputType');
-            testCase.verifyError(@() SparseSingle([3 2],"test",ones(1,2,'single')),'sparseSingle:invalidDataPointer');
+            testCase.verifyError(@() SparseSingle([3 2],4,ones(1,2,'single')),'sparseEigen:invalidInputType');
+            testCase.verifyError(@() SparseSingle([3 2],[2 3],ones(1,2,'double')),'sparseEigen:invalidInputType');
+            testCase.verifyError(@() SparseSingle([3 2],"test",ones(1,2,'single')),'sparseEigen:invalidDataPointer');
         end
 
         function test_horzcat(testCase)
@@ -151,8 +151,8 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.verifyEqual(nnz(testsM),nnz(testM));
 
             %Wrong size error
-            testCase.verifyError(@() ones(3) + tests,'sparseSingle:wrongDataType');
-            testCase.verifyError(@() tests + ones(3),'sparseSingle:wrongDataType');
+            testCase.verifyError(@() ones(3) + tests,'sparseEigen:wrongDataType');
+            testCase.verifyError(@() tests + ones(3),'sparseEigen:wrongDataType');
         end
 
         function test_minus(testCase)
@@ -197,8 +197,8 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.verifyTrue(nnz(testsM) == 0);
 
             %Wrong size error
-            testCase.verifyError(@() ones(3) + tests,'sparseSingle:wrongDataType');
-            testCase.verifyError(@() tests + ones(3),'sparseSingle:wrongDataType');
+            testCase.verifyError(@() ones(3) + tests,'sparseEigen:wrongDataType');
+            testCase.verifyError(@() tests + ones(3),'sparseEigen:wrongDataType');
         end
 
         function test_times(testCase)
@@ -239,8 +239,8 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.verifyEqual(nnz(testsM),nnz(testM));
 
             %Wrong size error
-            testCase.verifyError(@() ones(3) + tests,'sparseSingle:wrongDataType');
-            testCase.verifyError(@() tests + ones(3),'sparseSingle:wrongDataType');
+            testCase.verifyError(@() ones(3) + tests,'sparseEigen:wrongDataType');
+            testCase.verifyError(@() tests + ones(3),'sparseEigen:wrongDataType');
         end
 
         function test_rdivide(testCase)
@@ -281,8 +281,8 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.verifyEqual(nnz(testsM),nnz(testM));
 
             %Wrong size error
-            testCase.verifyError(@() ones(3) + tests,'sparseSingle:wrongDataType');
-            testCase.verifyError(@() tests + ones(3),'sparseSingle:wrongDataType');
+            testCase.verifyError(@() ones(3) + tests,'sparseEigen:wrongDataType');
+            testCase.verifyError(@() tests + ones(3),'sparseEigen:wrongDataType');
         end
 
         function test_ldivide(testCase)
@@ -323,8 +323,8 @@ classdef SparseSingleTest < matlab.unittest.TestCase
             testCase.verifyEqual(nnz(testsM),nnz(testM));
 
             %Wrong size error
-            testCase.verifyError(@() ones(3) + tests,'sparseSingle:wrongDataType');
-            testCase.verifyError(@() tests + ones(3),'sparseSingle:wrongDataType');
+            testCase.verifyError(@() ones(3) + tests,'sparseEigen:wrongDataType');
+            testCase.verifyError(@() tests + ones(3),'sparseEigen:wrongDataType');
         end
 
         function test_uminus(testCase)

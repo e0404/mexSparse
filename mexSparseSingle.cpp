@@ -1,11 +1,12 @@
 #include "mex.h"
 #include "class_handle.hpp"
-#include "sparseSingle.hpp"
+#include "sparseEigen.hpp"
 
 #include <stdexcept>
 
-// The class that we are interfacing to
 
+typedef sparseEigen<int64_t,float> sparseSingle;
+// The class that we are interfacing to
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[])
 {	
