@@ -119,8 +119,8 @@ sparseEigen<index_t,value_t>::sparseEigen(const mxArray *m_, const mxArray *n_)
         throw(MexException("sparseEigen:invalidInputType","Row and/or Column Number input is invalid!"));
     
     //Note that this implicitly casts to double and thus also allows other data types from matlab
-    index_t m = (index_t) mxGetScalar(m_); 
-    index_t n = (index_t) mxGetScalar(n_);
+    mwIndex m = (mwIndex) mxGetScalar(m_); 
+    mwIndex n = (mwIndex) mxGetScalar(n_);
 
     this->eigSpMatrix = std::make_shared<spMat_t>(m,n);
 }
@@ -129,10 +129,10 @@ template <typename index_t, typename value_t>
 sparseEigen<index_t,value_t>::sparseEigen(const mxArray* i_, const mxArray* j_, const mxArray* v_)
 {
     //We only obtain the size here before calling the construction with given sizes
-    index_t maxI = 0;
-    index_t maxJ = 0;
-    UntypedMxDataAccessor<index_t> i(i_);
-    UntypedMxDataAccessor<index_t> j(j_);
+    mwIndex maxI = 0;
+    mwIndex maxJ = 0;
+    UntypedMxDataAccessor<mwIndex> i(i_);
+    UntypedMxDataAccessor<mwIndex> j(j_);
 
     #pragma omp parallel sections
     {
@@ -140,14 +140,14 @@ sparseEigen<index_t,value_t>::sparseEigen(const mxArray* i_, const mxArray* j_, 
         {
             
             for (size_t n=0; n < i.size(); n++)
-                maxI = std::max<index_t>(maxI,i[n]);
+                maxI = std::max<mwIndex>(maxI,i[n]);
         }
         
         #pragma omp section
         {
             
             for (size_t n=0; n < j.size(); n++)
-                maxJ = std::max<index_t>(maxJ,j[n]);
+                maxJ = std::max<mwIndex>(maxJ,j[n]);
         }
     }
 
@@ -1930,7 +1930,7 @@ mxArray* sparseEigen<index_t,value_t>::mldivide(const mxArray* b) const
                     mxSingle* vals = mxGetSingles(b);
                     Eigen::Map<mxSingleAsMatrix_t> factorMatrixMap(vals,b_m,b_n);
                     
-                    resultMap = solverLU.solve(factorMatrixMap);
+                    resultMap = solverLU.solve(factorMatrixMap.cast<value_t>());
                     info = solverLU.info();
                 }
                 else if (mxType == mxDOUBLE_CLASS)
@@ -1970,7 +1970,7 @@ mxArray* sparseEigen<index_t,value_t>::mldivide(const mxArray* b) const
                     mxSingle* vals = mxGetSingles(b);
                     Eigen::Map<mxSingleAsMatrix_t> factorMatrixMap(vals,b_m,b_n);
                     
-                    resultMap = solverQR.solve(factorMatrixMap);
+                    resultMap = solverQR.solve(factorMatrixMap.cast<value_t>());
                     info = solverQR.info();
                 }
                 else if (mxType == mxDOUBLE_CLASS)
@@ -2157,3 +2157,7 @@ mxArray* sparseEigen<index_t,value_t>::timesScalar(const mxArray* val_) const
 
 // Standard sparse single
 template class sparseEigen<int64_t,mxSingle>;
+template class sparseEigen<int32_t,mxSingle>;
+template class sparseEigen<int64_t,mxDouble>;
+
+
